@@ -162,6 +162,15 @@ input[disabled] {
     color: #666;
     font-size: 0.875em;
   }
+  .archive .excerpt {
+    margin: 4px 0 0 0;
+    color: #444;
+    font-size: 0.9375em;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .archive li {
     margin-bottom: 15px;
   }

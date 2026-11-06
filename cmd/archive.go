@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"html"
 	"html/template"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/gorilla/feeds"
 	"github.com/knadh/listmonk/internal/manager"
@@ -14,13 +17,43 @@ import (
 	null "gopkg.in/volatiletech/null.v6"
 )
 
+const excerptLength = 160
+
+var reHTMLTag = regexp.MustCompile(`(?s)<[^>]*>`)
+
 type campArchive struct {
 	UUID      string    `json:"uuid"`
 	Subject   string    `json:"subject"`
 	Content   string    `json:"content"`
+	Excerpt   string    `json:"excerpt"`
 	CreatedAt null.Time `json:"created_at"`
 	SendAt    null.Time `json:"send_at"`
 	URL       string    `json:"url"`
+}
+
+// campaignExcerpt returns a single-line plain text summary of a campaign body.
+func campaignExcerpt(c models.Campaign) string {
+	var text string
+
+	if c.ContentType == models.CampaignContentTypeMarkdown {
+		plain, err := c.ConvertContent(models.CampaignContentTypeMarkdown, models.CampaignContentTypePlain)
+		if err == nil {
+			text = plain
+		} else {
+			text = c.Body
+		}
+	} else {
+		text = html.UnescapeString(reHTMLTag.ReplaceAllString(c.Body, " "))
+	}
+
+	text = strings.Join(strings.Fields(text), " ")
+
+	runes := []rune(text)
+	if len(runes) > excerptLength {
+		text = strings.TrimSpace(string(runes[:excerptLength])) + "…"
+	}
+
+	return text
 }
 
 // GetCampaignArchives renders the public campaign archives page.
@@ -211,6 +244,7 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 		archive := campArchive{
 			UUID:      camp.UUID,
 			Subject:   camp.Subject,
+			Excerpt:   campaignExcerpt(*camp),
 			CreatedAt: camp.CreatedAt,
 			SendAt:    camp.SendAt,
 		}

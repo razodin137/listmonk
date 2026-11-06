@@ -14,6 +14,9 @@
                         {{ NiceDate $c.CreatedAt }}
                     {{ end }}
                 </span>
+                {{ if $c.Excerpt }}
+                    <p class="excerpt">{{ $c.Excerpt }}</p>
+                {{ end }}
             </li>
         {{ end }}
     </ul>
