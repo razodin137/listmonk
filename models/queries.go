@@ -69,6 +69,13 @@ type Queries struct {
 	UpdateListsDate *sqlx.Stmt `query:"update-lists-date"`
 	DeleteLists     *sqlx.Stmt `query:"delete-lists"`
 
+	QueryCards     string     `query:"query-cards"`
+	GetCard        *sqlx.Stmt `query:"get-card"`
+	CardSlugExists *sqlx.Stmt `query:"card-slug-exists"`
+	CreateCard     *sqlx.Stmt `query:"create-card"`
+	UpdateCard     *sqlx.Stmt `query:"update-card"`
+	DeleteCard     *sqlx.Stmt `query:"delete-card"`
+
 	CreateCampaign        *sqlx.Stmt `query:"create-campaign"`
 	QueryCampaigns        string     `query:"query-campaigns"`
 	GetCampaign           *sqlx.Stmt `query:"get-campaign"`

@@ -204,6 +204,12 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/lists", a.DeleteLists)
 		g.DELETE("/api/lists/:id", hasID(a.DeleteList))
 
+		g.GET("/api/cards", pm(a.GetCards, auth.PermListGetAll, auth.PermListGet))
+		g.GET("/api/cards/:id", pm(hasID(a.GetCard), auth.PermListGetAll, auth.PermListGet))
+		g.POST("/api/cards", pm(a.CreateCard, auth.PermListManageAll))
+		g.PUT("/api/cards/:id", pm(hasID(a.UpdateCard), auth.PermListManageAll))
+		g.DELETE("/api/cards/:id", pm(hasID(a.DeleteCard), auth.PermListManageAll))
+
 		g.GET("/api/campaigns", pm(a.GetCampaigns, auth.PermCampaignsGetAll, auth.PermCampaignsGet))
 		g.GET("/api/campaigns/running/stats", pm(a.GetRunningCampaignStats, auth.PermCampaignsGetAll, auth.PermCampaignsGet))
 		g.GET("/api/campaigns/:id", pm(hasID(a.GetCampaign), auth.PermCampaignsGetAll, auth.PermCampaignsGet))

@@ -10,3 +10,5 @@ node_modules
 listmonk
 dist/*
 uploads/
+
+.scratch/

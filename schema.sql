@@ -35,6 +35,8 @@ DROP INDEX IF EXISTS idx_subs_created_at; CREATE INDEX idx_subs_created_at ON su
 DROP INDEX IF EXISTS idx_subs_updated_at; CREATE INDEX idx_subs_updated_at ON subscribers(updated_at);
 
 -- lists
+DROP TABLE IF EXISTS card_lists CASCADE;
+DROP TABLE IF EXISTS cards CASCADE;
 DROP TABLE IF EXISTS lists CASCADE;
 CREATE TABLE lists (
     id              SERIAL PRIMARY KEY,
@@ -74,6 +76,31 @@ DROP INDEX IF EXISTS idx_sub_lists_list_id; CREATE INDEX idx_sub_lists_list_id O
 DROP INDEX IF EXISTS idx_sub_lists_status; CREATE INDEX idx_sub_lists_status ON subscriber_lists(status);
 CREATE INDEX IF NOT EXISTS idx_sub_lists_created_at ON subscriber_lists(created_at);
 CREATE INDEX IF NOT EXISTS idx_sub_lists_unsubscribed_updated_at ON subscriber_lists(updated_at) WHERE status = 'unsubscribed';
+
+-- signup cards
+-- A card is a named public signup form that pins a fixed set of lists (labels).
+CREATE TABLE cards (
+    id              SERIAL PRIMARY KEY,
+    uuid            uuid NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
+    slug            TEXT NOT NULL UNIQUE,
+    description     TEXT NOT NULL DEFAULT '',
+
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+DROP INDEX IF EXISTS idx_cards_name; CREATE INDEX idx_cards_name ON cards(name);
+DROP INDEX IF EXISTS idx_cards_created_at; CREATE INDEX idx_cards_created_at ON cards(created_at);
+DROP INDEX IF EXISTS idx_cards_updated_at; CREATE INDEX idx_cards_updated_at ON cards(updated_at);
+
+CREATE TABLE card_lists (
+    card_id         INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    list_id         INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    PRIMARY KEY(card_id, list_id)
+);
+DROP INDEX IF EXISTS idx_card_lists_list_id; CREATE INDEX idx_card_lists_list_id ON card_lists(list_id);
 
 -- templates
 DROP TABLE IF EXISTS templates CASCADE;
