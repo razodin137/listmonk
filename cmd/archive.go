@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"html"
 	"html/template"
 	"net/http"
@@ -29,6 +30,45 @@ type campArchive struct {
 	CreatedAt null.Time `json:"created_at"`
 	SendAt    null.Time `json:"send_at"`
 	URL       string    `json:"url"`
+}
+
+// campArchiveEntry is one sent campaign in the public archive dataset.
+type campArchiveEntry struct {
+	UUID  string    `json:"uuid"`
+	Title string    `json:"title"`
+	Slug  string    `json:"slug"`
+	Date  null.Time `json:"date"`
+	Tags  []string  `json:"tags"`
+	Body  string    `json:"body"`
+}
+
+// campaignArchiveDate returns the date a campaign was sent. Scheduled
+// campaigns fall back to their send time or creation time.
+func campaignArchiveDate(c models.Campaign) null.Time {
+	if c.StartedAt.Valid {
+		return c.StartedAt
+	}
+	if c.SendAt.Valid {
+		return c.SendAt
+	}
+
+	return c.CreatedAt
+}
+
+// campaignArchiveSlug returns the stable archive slug, falling back to the
+// campaign UUID when no custom slug is set.
+func campaignArchiveSlug(c models.Campaign) string {
+	if c.ArchiveSlug.Valid && c.ArchiveSlug.String != "" {
+		return c.ArchiveSlug.String
+	}
+
+	return c.UUID
+}
+
+// campaignArchiveTags returns the campaign tags as a non-nil slice so the
+// dataset always emits a JSON array.
+func campaignArchiveTags(c models.Campaign) []string {
+	return append([]string{}, c.Tags...)
 }
 
 // campaignExcerpt returns a single-line plain text summary of a campaign body.
@@ -82,6 +122,57 @@ func (a *App) GetCampaignArchives(c *echo.Context) error {
 	}
 
 	return c.JSON(200, okResp{out})
+}
+
+// GetCampaignArchiveDataset returns every archived campaign, newest first, as
+// one JSON dataset for static site generators and other consumers.
+func (a *App) GetCampaignArchiveDataset(c *echo.Context) error {
+	camps, _, err := a.core.GetArchivedCampaigns(0, 0)
+	if err != nil {
+		return err
+	}
+
+	out := make([]campArchiveEntry, 0, len(camps))
+	for _, camp := range camps {
+		msg, err := a.compileArchiveContent(camp)
+		if err != nil {
+			a.log.Printf("error compiling archive dataset entry: %v", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorFetchingCampaign"))
+		}
+
+		out = append(out, campArchiveEntry{
+			UUID:  camp.UUID,
+			Title: msg.Subject(),
+			Slug:  campaignArchiveSlug(camp),
+			Date:  campaignArchiveDate(camp),
+			Tags:  campaignArchiveTags(camp),
+			Body:  string(msg.Body()),
+		})
+	}
+
+	return c.JSON(http.StatusOK, out)
+}
+
+// compileArchiveContent renders a campaign body as a standalone HTML fragment
+// without the e-mail template wrapper.
+func (a *App) compileArchiveContent(camp models.Campaign) (manager.CampaignMessage, error) {
+	a.manager.ApplyArchiveImages(&camp)
+
+	if err := camp.CompileContentTemplate(a.manager.TemplateFuncs(&camp)); err != nil {
+		return manager.CampaignMessage{}, fmt.Errorf("compiling archive content: %w", err)
+	}
+
+	var sub models.Subscriber
+	if err := json.Unmarshal(camp.ArchiveMeta, &sub); err != nil {
+		return manager.CampaignMessage{}, fmt.Errorf("unmarshalling archive meta: %w", err)
+	}
+
+	msg, err := a.manager.NewCampaignMessage(&camp, sub)
+	if err != nil {
+		return manager.CampaignMessage{}, fmt.Errorf("rendering archive content: %w", err)
+	}
+
+	return msg, nil
 }
 
 // GetCampaignArchivesFeed renders the public campaign archives RSS feed.

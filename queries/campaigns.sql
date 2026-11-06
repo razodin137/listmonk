@@ -111,7 +111,7 @@ SELECT COUNT(*) OVER () AS total, campaigns.*,
     LEFT JOIN templates archive_templates ON (archive_templates.id = campaigns.archive_template_id)
     WHERE campaigns.archive=true AND campaigns.type='regular' AND campaigns.status=ANY('{running, paused, finished}')
     ORDER by COALESCE(campaigns.started_at, campaigns.send_at, campaigns.created_at) DESC,
-        campaigns.id DESC OFFSET $1 LIMIT $2;
+        campaigns.id DESC OFFSET $1 LIMIT (CASE WHEN $2::INT < 1 THEN NULL ELSE $2::INT END);
 
 -- name: get-campaign-stats
 -- This query is used to lazy load campaign stats (views, counts, list of lists) given a list of campaign IDs.
