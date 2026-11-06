@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/captcha"
+	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/notifs"
@@ -853,20 +854,25 @@ func (a *App) processSubForm(c *echo.Context) (bool, error) {
 		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("public.noListsSelected"))
 	}
 
-	return a.subscribeSub(req.Name, req.Email, req.FormListUUIDs)
+	out, err := a.subscribeSub(req.Name, req.Email, req.FormListUUIDs)
+	if err != nil {
+		return false, err
+	}
+
+	return out.HasOptin, nil
 }
 
 // subscribeSub adds a subscriber to the given lists, reusing an existing
 // subscriber instead of failing when the e-mail is already known.
-func (a *App) subscribeSub(name, email string, listUUIDs []string) (bool, error) {
+func (a *App) subscribeSub(name, email string, listUUIDs []string) (core.SubscriptionResult, error) {
 	// Validate fields.
 	if len(email) > 1000 {
-		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidEmail"))
+		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidEmail"))
 	}
 
 	em, err := a.importer.SanitizeEmail(email)
 	if err != nil {
-		return false, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	email = em
 
@@ -875,32 +881,32 @@ func (a *App) subscribeSub(name, email string, listUUIDs []string) (bool, error)
 		// If there's no name, use the name bit from the e-mail.
 		name = strings.Split(email, "@")[0]
 	} else if len(name) > stdInputMaxLen {
-		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidName"))
+		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidName"))
 	}
 
 	// Fetch the list types and ensure that they are not private.
 	listTypes, err := a.core.GetListTypes(nil, listUUIDs)
 	if err != nil {
-		return false, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("%s", err.(*echo.HTTPError).Message))
+		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("%s", err.(*echo.HTTPError).Message))
 	}
 
 	for _, t := range listTypes {
 		if t == models.ListTypePrivate {
-			return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidUUID"))
+			return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidUUID"))
 		}
 	}
 
-	hasOptin, err := a.core.SubscribeSubscriber(models.Subscriber{
+	out, err := a.core.SubscribeSubscriberWithResult(models.Subscriber{
 		Name:   name,
 		Email:  email,
 		Status: models.SubscriberStatusEnabled,
 	}, listUUIDs)
 	if err != nil {
 		if e, ok := err.(*echo.HTTPError); ok {
-			return false, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%s", e.Message))
+			return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%s", e.Message))
 		}
-		return false, echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorProcessingRequest"))
+		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorProcessingRequest"))
 	}
 
-	return hasOptin, nil
+	return out, nil
 }

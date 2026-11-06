@@ -487,7 +487,7 @@ func (a *App) CardSubscription(c *echo.Context) error {
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsSelected")))
 	}
 
-	hasOptin, err := a.subscribeSub(req.Name, req.Email, listUUIDs)
+	out, err := a.subscribeSub(req.Name, req.Email, listUUIDs)
 	if err != nil {
 		e, ok := err.(*echo.HTTPError)
 		if !ok {
@@ -497,7 +497,13 @@ func (a *App) CardSubscription(c *echo.Context) error {
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
 	}
 
-	if hasOptin {
+	if out.New || out.GainedLabels {
+		if err := a.core.RecordCardJoin(card.ID, out.Subscriber.ID, out.New); err != nil {
+			return err
+		}
+	}
+
+	if out.HasOptin {
 		return c.Render(http.StatusOK, tplMessage,
 			makeMsgTpl(a.i18n.T("globals.buttons.subscribe"), "", a.i18n.Ts("public.subOptinPending")))
 	}

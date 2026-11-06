@@ -411,41 +411,103 @@ type subscriberStore interface {
 	UpdateSubscriberWithLists(int, models.Subscriber, []int, []string, bool, bool, bool, []int, bool) (models.Subscriber, bool, error)
 }
 
+// SubscriptionResult describes what a public subscription attempt did.
+type SubscriptionResult struct {
+	Subscriber   models.Subscriber
+	New          bool
+	GainedLabels bool
+	HasOptin     bool
+}
+
 // SubscribeSubscriber inserts a subscriber and adds the given lists. If the
 // e-mail already exists, the lists are added to the existing subscriber
 // without changing its profile or its other list subscriptions.
 func (c *Core) SubscribeSubscriber(sub models.Subscriber, listUUIDs []string) (bool, error) {
-	return subscribeSubscriber(c, sub, listUUIDs)
+	out, err := c.SubscribeSubscriberWithResult(sub, listUUIDs)
+	if err != nil {
+		return false, err
+	}
+
+	return out.HasOptin, nil
+}
+
+// SubscribeSubscriberWithResult subscribes a subscriber and reports whether
+// they were new and, for an existing subscriber, whether any of the given
+// labels were actually gained.
+func (c *Core) SubscribeSubscriberWithResult(sub models.Subscriber, listUUIDs []string) (SubscriptionResult, error) {
+	return subscribeSubscriberWithResult(c, sub, listUUIDs)
 }
 
 func subscribeSubscriber(store subscriberStore, sub models.Subscriber, listUUIDs []string) (bool, error) {
+	out, err := subscribeSubscriberWithResult(store, sub, listUUIDs)
+	if err != nil {
+		return false, err
+	}
+
+	return out.HasOptin, nil
+}
+
+func subscribeSubscriberWithResult(store subscriberStore, sub models.Subscriber, listUUIDs []string) (SubscriptionResult, error) {
 	uuids := pq.StringArray(listUUIDs)
 
-	_, hasOptin, err := store.InsertSubscriber(sub, nil, uuids, false, true)
+	out, hasOptin, err := store.InsertSubscriber(sub, nil, uuids, false, true)
 	if err == nil {
-		return hasOptin, nil
+		return SubscriptionResult{
+			Subscriber:   out,
+			New:          true,
+			GainedLabels: true,
+			HasOptin:     hasOptin,
+		}, nil
 	}
 
 	e, ok := err.(*echo.HTTPError)
 	if !ok || e.Code != http.StatusConflict {
-		return false, err
+		return SubscriptionResult{}, err
 	}
 
 	existing, err := store.GetSubscriber(0, "", sub.Email)
 	if err != nil {
-		return false, err
+		return SubscriptionResult{}, err
 	}
+
+	gained := subscriberGainedLabels(existing, listUUIDs)
 
 	// A member who is already enabled and confirmed on every one of these
 	// lists is subscribed right away, with no opt-in mail or confirmation.
 	preconfirm := existing.IsConfirmedOn(listUUIDs)
 
-	_, hasOptin, err = store.UpdateSubscriberWithLists(existing.ID, existing, nil, uuids, preconfirm, false, true, nil, true)
+	out, hasOptin, err = store.UpdateSubscriberWithLists(existing.ID, existing, nil, uuids, preconfirm, false, true, nil, true)
 	if err != nil {
-		return false, err
+		return SubscriptionResult{}, err
 	}
 
-	return hasOptin, nil
+	return SubscriptionResult{
+		Subscriber:   out,
+		GainedLabels: gained,
+		HasOptin:     hasOptin,
+	}, nil
+}
+
+// subscriberGainedLabels reports whether any of the given labels are new to
+// the subscriber. A label that was unsubscribed counts as a gain; a pending
+// confirmation does not.
+func subscriberGainedLabels(sub models.Subscriber, listUUIDs []string) bool {
+	if sub.Status == models.SubscriberStatusBlockListed {
+		return false
+	}
+
+	statuses := make(map[string]string, len(sub.ParsedLists()))
+	for _, l := range sub.ParsedLists() {
+		statuses[l.UUID] = l.SubscriptionStatus
+	}
+
+	for _, u := range listUUIDs {
+		if status, ok := statuses[u]; !ok || status == models.SubscriptionStatusUnsubscribed {
+			return true
+		}
+	}
+
+	return false
 }
 
 // UpdateSubscriber updates a subscriber's properties.

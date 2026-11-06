@@ -158,6 +158,18 @@ func (c *Core) DuplicateCard(id int) (models.Card, error) {
 	}, listIDs)
 }
 
+// RecordCardJoin records one successful signup that came through a card. The
+// subscriber is new, or an existing subscriber who gained the card's labels.
+func (c *Core) RecordCardJoin(cardID, subscriberID int, isNew bool) error {
+	if _, err := c.q.InsertCardJoin.Exec(cardID, subscriberID, isNew); err != nil {
+		c.log.Printf("error recording card join: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError,
+			c.i18n.Ts("globals.messages.errorUpdating", "name", "card", "error", pqErrMsg(err)))
+	}
+
+	return nil
+}
+
 // DeleteCard deletes a card along with its list associations.
 func (c *Core) DeleteCard(id int) error {
 	if _, err := c.q.DeleteCard.Exec(id); err != nil {

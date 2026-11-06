@@ -75,6 +75,7 @@ type Queries struct {
 	CreateCard     *sqlx.Stmt `query:"create-card"`
 	UpdateCard     *sqlx.Stmt `query:"update-card"`
 	DeleteCard     *sqlx.Stmt `query:"delete-card"`
+	InsertCardJoin *sqlx.Stmt `query:"insert-card-join"`
 
 	CreateCampaign        *sqlx.Stmt `query:"create-campaign"`
 	QueryCampaigns        string     `query:"query-campaigns"`

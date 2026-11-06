@@ -63,8 +63,11 @@
 									{{- end }}
 								</div>
 							</td>
-							<td class="subscribers" data-label="{{ $.L.T "cards.joins" }}">
+							<td class="subscribers" data-label="{{ $.L.T "cards.joins" }}" data-testid="card-joins">
 								<span class="subscriber-total">{{ FormatNumber .Joins }}</span>
+								<div class="text-small text-light">
+									{{ FormatNumber .NewJoins }} {{ $.L.T "cards.newJoins" }} · {{ FormatNumber .ExistingJoins }} {{ $.L.T "cards.existingJoins" }}
+								</div>
 							</td>
 							<td class="date-stack" data-label="{{ $.L.T "globals.fields.createdAt" }}">{{ NiceDate .CreatedAt }}</td>
 							<td class="actions align-right">

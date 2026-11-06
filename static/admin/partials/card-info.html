@@ -62,9 +62,19 @@
 
 	<section class="row">
 		<div class="col-3">
-			<article class="card float stat-card">
+			<article class="card float stat-card" data-testid="card-joins">
 				<h4 class="title">{{ Icon "user-check" }} {{ .L.T "cards.joins" }}</h4>
 				<div class="stat-value">{{ FormatNumber $c.Joins }}</div>
+				<dl class="stat-meta hstack justify-between">
+					<div class="hstack gap-1">
+						<dt><strong>{{ FormatNumber $c.NewJoins }}</strong></dt>
+						<dd class="text-light">{{ .L.T "cards.newJoins" }}</dd>
+					</div>
+					<div class="hstack gap-1">
+						<dt><strong>{{ FormatNumber $c.ExistingJoins }}</strong></dt>
+						<dd class="text-light">{{ .L.T "cards.existingJoins" }}</dd>
+					</div>
+				</dl>
 			</article>
 		</div>
 	</section>

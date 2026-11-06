@@ -110,5 +110,11 @@ WITH c AS (
 )
 SELECT id FROM c;
 
+-- name: insert-card-join
+-- Record a signup that came through a card. is_new marks a subscriber who did
+-- not exist before; existing subscribers are only recorded when they gained
+-- at least one of the card's labels.
+INSERT INTO card_joins (card_id, subscriber_id, is_new) VALUES ($1, $2, $3);
+
 -- name: delete-card
 DELETE FROM cards WHERE id = $1;

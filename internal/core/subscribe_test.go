@@ -226,6 +226,91 @@ func TestSubscribeConfirmedMemberSkipsOptin(t *testing.T) {
 	}
 }
 
+func TestSubscribeResultSplitsNewAndExistingMembers(t *testing.T) {
+	store := newFakeSubscriberStore()
+	email := "ada@example.com"
+
+	newRes, err := subscribeSubscriberWithResult(store, models.Subscriber{
+		Name:   "Ada",
+		Email:  email,
+		Status: models.SubscriberStatusEnabled,
+	}, []string{"news"})
+	if err != nil {
+		t.Fatalf("first signup: %v", err)
+	}
+	if !newRes.New {
+		t.Error("first signup New = false, want true")
+	}
+	if !newRes.GainedLabels {
+		t.Error("first signup GainedLabels = false, want true")
+	}
+	if newRes.Subscriber.ID == 0 {
+		t.Error("first signup returned no subscriber ID")
+	}
+
+	setSubscriberLists(store, email, `[{"uuid":"news","subscription_status":"confirmed"}]`)
+
+	gainedRes, err := subscribeSubscriberWithResult(store, models.Subscriber{
+		Name:   "Ada",
+		Email:  email,
+		Status: models.SubscriberStatusEnabled,
+	}, []string{"news", "events"})
+	if err != nil {
+		t.Fatalf("second signup: %v", err)
+	}
+	if gainedRes.New {
+		t.Error("existing signup New = true, want false")
+	}
+	if !gainedRes.GainedLabels {
+		t.Error("existing signup GainedLabels = false, want true")
+	}
+
+	setSubscriberLists(store, email, `[
+		{"uuid":"news","subscription_status":"confirmed"},
+		{"uuid":"events","subscription_status":"confirmed"}
+	]`)
+
+	sameRes, err := subscribeSubscriberWithResult(store, models.Subscriber{
+		Name:   "Ada",
+		Email:  email,
+		Status: models.SubscriberStatusEnabled,
+	}, []string{"news", "events"})
+	if err != nil {
+		t.Fatalf("third signup: %v", err)
+	}
+	if sameRes.New {
+		t.Error("existing signup New = true, want false")
+	}
+	if sameRes.GainedLabels {
+		t.Error("existing signup with every label GainedLabels = true, want false")
+	}
+}
+
+func TestSubscriberGainedLabels(t *testing.T) {
+	cases := []struct {
+		name   string
+		status string
+		lists  string
+		want   bool
+	}{
+		{"no subscriptions", models.SubscriberStatusEnabled, `[]`, true},
+		{"new label", models.SubscriberStatusEnabled, `[{"uuid":"other","subscription_status":"confirmed"}]`, true},
+		{"already confirmed", models.SubscriberStatusEnabled, `[{"uuid":"news","subscription_status":"confirmed"}]`, false},
+		{"pending confirmation", models.SubscriberStatusEnabled, `[{"uuid":"news","subscription_status":"unconfirmed"}]`, false},
+		{"unsubscribed", models.SubscriberStatusEnabled, `[{"uuid":"news","subscription_status":"unsubscribed"}]`, true},
+		{"blocklisted", models.SubscriberStatusBlockListed, `[{"uuid":"news","subscription_status":"unsubscribed"}]`, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sub := models.Subscriber{Status: tc.status, Lists: types.JSONText(tc.lists)}
+			if got := subscriberGainedLabels(sub, []string{"news"}); got != tc.want {
+				t.Errorf("subscriberGainedLabels() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSubscribeUnconfirmedOrDisabledMemberStillOptsIn(t *testing.T) {
 	cases := []struct {
 		name   string
