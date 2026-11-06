@@ -20,7 +20,6 @@ import (
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v5"
-	"github.com/lib/pq"
 )
 
 const (
@@ -879,8 +878,6 @@ func (a *App) subscribeSub(name, email string, listUUIDs []string) (bool, error)
 		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidName"))
 	}
 
-	uuids := pq.StringArray(listUUIDs)
-
 	// Fetch the list types and ensure that they are not private.
 	listTypes, err := a.core.GetListTypes(nil, listUUIDs)
 	if err != nil {
@@ -893,38 +890,17 @@ func (a *App) subscribeSub(name, email string, listUUIDs []string) (bool, error)
 		}
 	}
 
-	// Insert the subscriber into the DB.
-	_, hasOptin, err := a.core.InsertSubscriber(models.Subscriber{
+	hasOptin, err := a.core.SubscribeSubscriber(models.Subscriber{
 		Name:   name,
 		Email:  email,
 		Status: models.SubscriberStatusEnabled,
-	}, nil, uuids, false, true)
-	if err == nil {
-		return hasOptin, nil
-	}
-
-	// Insert returned an error. Examine it.
-	var lastErr = err
-
-	// Subscriber already exists. Update subscriptions in the DB.
-	if e, ok := err.(*echo.HTTPError); ok && e.Code == http.StatusConflict {
-		// Get the subscriber from the DB by their email.
-		sub, err := a.core.GetSubscriber(0, "", email)
-		if err != nil {
-			return false, err
+	}, listUUIDs)
+	if err != nil {
+		if e, ok := err.(*echo.HTTPError); ok {
+			return false, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%s", e.Message))
 		}
-
-		// Update the subscriber's subscriptions in the DB.
-		_, hasOptin, err := a.core.UpdateSubscriberWithLists(sub.ID, sub, nil, uuids, false, false, true, nil, true)
-		if err == nil {
-			return hasOptin, nil
-		}
-		lastErr = err
+		return false, echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorProcessingRequest"))
 	}
 
-	// Something else went wrong.
-	if e, ok := lastErr.(*echo.HTTPError); ok {
-		return false, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%s", e.Message))
-	}
-	return false, echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorProcessingRequest"))
+	return hasOptin, nil
 }

@@ -403,6 +403,47 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 	return out, hasOptin, nil
 }
 
+// subscriberStore is the subset of subscriber operations needed to reuse an
+// existing subscriber instead of failing on a duplicate e-mail.
+type subscriberStore interface {
+	InsertSubscriber(models.Subscriber, []int, []string, bool, bool) (models.Subscriber, bool, error)
+	GetSubscriber(int, string, string) (models.Subscriber, error)
+	UpdateSubscriberWithLists(int, models.Subscriber, []int, []string, bool, bool, bool, []int, bool) (models.Subscriber, bool, error)
+}
+
+// SubscribeSubscriber inserts a subscriber and adds the given lists. If the
+// e-mail already exists, the lists are added to the existing subscriber
+// without changing its profile or its other list subscriptions.
+func (c *Core) SubscribeSubscriber(sub models.Subscriber, listUUIDs []string) (bool, error) {
+	return subscribeSubscriber(c, sub, listUUIDs)
+}
+
+func subscribeSubscriber(store subscriberStore, sub models.Subscriber, listUUIDs []string) (bool, error) {
+	uuids := pq.StringArray(listUUIDs)
+
+	_, hasOptin, err := store.InsertSubscriber(sub, nil, uuids, false, true)
+	if err == nil {
+		return hasOptin, nil
+	}
+
+	e, ok := err.(*echo.HTTPError)
+	if !ok || e.Code != http.StatusConflict {
+		return false, err
+	}
+
+	existing, err := store.GetSubscriber(0, "", sub.Email)
+	if err != nil {
+		return false, err
+	}
+
+	_, hasOptin, err = store.UpdateSubscriberWithLists(existing.ID, existing, nil, uuids, false, false, true, nil, true)
+	if err != nil {
+		return false, err
+	}
+
+	return hasOptin, nil
+}
+
 // UpdateSubscriber updates a subscriber's properties.
 func (c *Core) UpdateSubscriber(id int, sub models.Subscriber) (models.Subscriber, error) {
 	// Format raw JSON attributes.
