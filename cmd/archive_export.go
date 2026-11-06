@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/knadh/listmonk/internal/archive"
 	"github.com/knadh/listmonk/models"
@@ -12,8 +13,9 @@ import (
 )
 
 const (
-	archiveDatasetFile = "archive.json"
-	archivePostExt     = ".md"
+	archiveDatasetFile      = "archive.json"
+	archiveContentIndexFile = "index.md"
+	archivePostExt          = ".md"
 )
 
 // archiveExportFile is one campaign body destined for the export directory.
@@ -140,9 +142,9 @@ func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 }
 
 // ExportArchive writes the public archive dataset, one Markdown file per
-// campaign, and a static HTML site to dir. Files whose contents have not
-// changed are left untouched, and hand-edited files are kept with the new
-// export written to a numeric variant beside them.
+// campaign, an index of those files, and a static HTML site to dir. Files
+// whose contents have not changed are left untouched, and hand-edited files
+// are kept with the new export written to a numeric variant beside them.
 func (a *App) ExportArchive(dir string) error {
 	if dir == "" {
 		dir = archive.DefaultExportDir
@@ -175,6 +177,7 @@ func (a *App) ExportArchive(dir string) error {
 
 	var (
 		files                    = append(posts, archiveStaticFiles(entries)...)
+		index                    = make([]archive.IndexEntry, len(posts))
 		written, unchanged, kept int
 	)
 
@@ -197,12 +200,32 @@ func (a *App) ExportArchive(dir string) error {
 	}
 	record(res)
 
-	for _, file := range files {
+	for i, file := range files {
 		res, err := writeArchiveFile(filepath.Join(dir, file.Name), []byte(file.Body))
 		if err != nil {
 			return err
 		}
 		record(res)
+
+		if i < len(posts) {
+			index[i] = archive.IndexEntry{
+				Slug:  entries[i].Slug,
+				Title: entries[i].Title,
+				Date:  archiveIndexDate(entries[i].Date),
+				File:  filepath.Base(res.Path),
+			}
+		}
+	}
+
+	wrote, err := archive.WriteFileIfChanged(
+		filepath.Join(dir, archiveContentIndexFile), []byte(archive.RenderIndex(index)))
+	if err != nil {
+		return fmt.Errorf("writing archive index: %w", err)
+	}
+	if wrote {
+		written++
+	} else {
+		unchanged++
 	}
 
 	a.log.Printf("archive: exported %d campaigns to %s", len(entries), dir)
@@ -229,6 +252,15 @@ func archiveExportFiles(entries []campArchiveEntry) ([]archiveExportFile, error)
 	}
 
 	return out, nil
+}
+
+// archiveIndexDate formats a campaign date as the post front matter does.
+func archiveIndexDate(t null.Time) string {
+	if !t.Valid {
+		return ""
+	}
+
+	return t.Time.UTC().Format(time.RFC3339)
 }
 
 // archivePostFile renders one campaign as a Hugo post with YAML front matter
