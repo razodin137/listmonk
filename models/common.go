@@ -13,7 +13,9 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/util"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
@@ -101,13 +103,16 @@ var regTplFuncs = []regTplFunc{
 var markdown = goldmark.New(
 	goldmark.WithParserOptions(
 		parser.WithAutoHeadingID(),
+		parser.WithASTTransformers(util.Prioritized(&emailHTMLStyles{}, 1000)),
 	),
 	goldmark.WithRendererOptions(
 		html.WithXHTML(),
 		html.WithUnsafe(),
+		renderer.WithNodeRenderers(util.Prioritized(&emailHTMLRenderer{}, 100)),
 	),
 	goldmark.WithExtensions(
 		extension.Table,
+		extension.Footnote,
 		extension.Strikethrough,
 		extension.TaskList,
 		extension.NewTypographer(

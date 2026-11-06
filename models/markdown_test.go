@@ -65,3 +65,62 @@ func TestMediaFilename(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkdownRendersEmailSafeRichBlocks(t *testing.T) {
+	body := []byte(`# Heading one
+
+## Heading two
+
+> A quote
+> on two lines.
+
+Use ` + "`inline code`" + ` here.
+
+` + "```go\nfmt.Println(\"hi\")\n```" + `
+
+| Name | Value |
+| :--- | ----: |
+| One  | 1     |
+| Two  | 2     |
+
+---
+
+Text with a footnote[^1].
+
+[^1]: The footnote text.
+`)
+
+	out, warnings, err := renderMarkdown(body, nil)
+	if err != nil {
+		t.Fatalf("renderMarkdown() error: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+
+	for name, want := range map[string]string{
+		"heading":           `<h1 style="`,
+		"blockquote":        `<blockquote style="`,
+		"inline code":       `<code style="`,
+		"code block":        `<pre style="`,
+		"code language":     `class="language-go"`,
+		"table":             `<table style="`,
+		"table header":      `<th style="`,
+		"table cell":        `<td style="`,
+		"horizontal rule":   `<hr style="`,
+		"footnote ref":      `role="doc-noteref"`,
+		"footnote list":     `class="footnotes"`,
+		"footnote backlink": `role="doc-backlink"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("%s not rendered with inline styles: %q", name, out)
+		}
+	}
+
+	if !strings.Contains(out, "The footnote text.") {
+		t.Fatalf("footnote body missing: %q", out)
+	}
+	if strings.Contains(out, "<style") || strings.Contains(out, "<link") {
+		t.Fatalf("output depends on external styles: %q", out)
+	}
+}
