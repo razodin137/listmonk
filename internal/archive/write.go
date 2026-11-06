@@ -104,7 +104,7 @@ func numericVariant(path string, n int) string {
 func writeFileAtomic(path string, data []byte) error {
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating temp file for %s: %w", path, err)
 	}
 
 	tmp := f.Name()
@@ -116,20 +116,20 @@ func writeFileAtomic(path string, data []byte) error {
 
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
-		return err
+		return fmt.Errorf("writing temp file for %s: %w", path, err)
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		return err
+		return fmt.Errorf("syncing temp file for %s: %w", path, err)
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return fmt.Errorf("closing temp file for %s: %w", path, err)
 	}
 	if err := os.Chmod(tmp, 0o644); err != nil {
-		return err
+		return fmt.Errorf("setting permissions on %s: %w", path, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		return err
+		return fmt.Errorf("renaming temp file into %s: %w", path, err)
 	}
 	tmp = ""
 

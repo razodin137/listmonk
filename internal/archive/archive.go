@@ -5,6 +5,7 @@ package archive
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"io"
 )
@@ -61,12 +62,20 @@ type PageData struct {
 
 // RenderList renders the archive list page.
 func RenderList(w io.Writer, data ListData) error {
-	return templates.ExecuteTemplate(w, ListTemplate, data)
+	if err := templates.ExecuteTemplate(w, ListTemplate, data); err != nil {
+		return fmt.Errorf("rendering archive list: %w", err)
+	}
+
+	return nil
 }
 
 // RenderPage renders a single archived campaign.
 func RenderPage(w io.Writer, data PageData) error {
-	return templates.ExecuteTemplate(w, PageTemplate, data)
+	if err := templates.ExecuteTemplate(w, PageTemplate, data); err != nil {
+		return fmt.Errorf("rendering archive page: %w", err)
+	}
+
+	return nil
 }
 
 // Stylesheet returns the archive stylesheet.

@@ -35,7 +35,7 @@ func (a *App) archiveFinishedCampaign(c *models.Campaign) error {
 	defer archiveFinishedMut.Unlock()
 
 	if _, err := a.publishCampaignToArchive(c); err != nil {
-		return err
+		return fmt.Errorf("publishing campaign to archive: %w", err)
 	}
 
 	if err := a.ExportArchive(a.cfg.ArchiveExportDir); err != nil {
@@ -151,7 +151,7 @@ func (a *App) publishCampaignToArchive(c *models.Campaign) (bool, error) {
 
 	slug, err := a.archiveSlugFor(c)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("assigning archive slug: %w", err)
 	}
 
 	if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, slug); err != nil {
@@ -212,7 +212,7 @@ func (a *App) ExportArchiveYears(dir string, years int) error {
 	}
 
 	if err := archive.EnsureExportDir(dir); err != nil {
-		return err
+		return fmt.Errorf("creating archive export directory %s: %w", dir, err)
 	}
 
 	camps, _, err := a.core.GetArchivedCampaigns(0, 0)
@@ -260,14 +260,14 @@ func (a *App) ExportArchiveYears(dir string, years int) error {
 
 	res, err := writeArchiveFile(filepath.Join(dir, archiveDatasetFile), data)
 	if err != nil {
-		return err
+		return fmt.Errorf("writing archive dataset: %w", err)
 	}
 	record(res)
 
 	for i, file := range files {
 		res, err := writeArchiveFile(filepath.Join(dir, file.Name), []byte(file.Body))
 		if err != nil {
-			return err
+			return fmt.Errorf("writing archive post %s: %w", file.Name, err)
 		}
 		record(res)
 
@@ -309,7 +309,7 @@ func archiveExportFiles(entries []campArchiveEntry) ([]archiveExportFile, error)
 	for _, entry := range entries {
 		body, err := archivePostFile(entry)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rendering archive post %s: %w", entry.Slug, err)
 		}
 
 		out = append(out, archiveExportFile{
@@ -343,7 +343,12 @@ func archivePostFile(entry campArchiveEntry) (string, error) {
 		post.Date = entry.Date.Time
 	}
 
-	return models.RenderArchivePost(post, entry.Body)
+	out, err := models.RenderArchivePost(post, entry.Body)
+	if err != nil {
+		return "", fmt.Errorf("rendering archive post %s: %w", entry.Slug, err)
+	}
+
+	return out, nil
 }
 
 // writeArchiveFile writes an export file without ever replacing a hand edit.

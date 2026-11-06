@@ -606,7 +606,7 @@ func (a *App) CardSubscription(c *echo.Context) error {
 			return err
 		}
 
-		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
+		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", e.Message))
 	}
 
 	var req subFormReq
@@ -628,7 +628,7 @@ func (a *App) CardSubscription(c *echo.Context) error {
 			return err
 		}
 
-		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
+		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", e.Message))
 	}
 
 	if out.New || out.GainedLabels {

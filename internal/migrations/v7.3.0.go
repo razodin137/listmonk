@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -16,7 +17,7 @@ func V7_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		    ADD COLUMN IF NOT EXISTS success_message TEXT NOT NULL DEFAULT '',
 		    ADD COLUMN IF NOT EXISTS redirect_url TEXT NOT NULL DEFAULT '';
 	`); err != nil {
-		return err
+		return fmt.Errorf("adding card success message and redirect URL: %w", err)
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/gorilla/feeds"
 )
@@ -41,7 +42,7 @@ func archiveFeed(entries []campArchiveEntry, title, siteURL, description string,
 func writeArchiveFeed(feed *feeds.Feed) (string, error) {
 	var buf bytes.Buffer
 	if err := feed.WriteRss(&buf); err != nil {
-		return "", err
+		return "", fmt.Errorf("rendering archive feed: %w", err)
 	}
 
 	return buf.String(), nil

@@ -557,7 +557,7 @@ func (a *App) UpdateCampaign(c *echo.Context) error {
 	}
 
 	// The campaign type is fixed at creation.
-	o.Campaign.Type = cm.Type
+	o.Type = cm.Type
 
 	// Filter lists against the current user's permitted lists.
 	user := auth.GetUser(c)

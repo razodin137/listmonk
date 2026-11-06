@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -14,7 +15,7 @@ func V7_4_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		ALTER TABLE cards
 		    ADD COLUMN IF NOT EXISTS captcha TEXT NOT NULL DEFAULT 'inherit';
 	`); err != nil {
-		return err
+		return fmt.Errorf("adding card captcha mode: %w", err)
 	}
 
 	return nil

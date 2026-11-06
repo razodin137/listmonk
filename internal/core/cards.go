@@ -169,7 +169,7 @@ func (c *Core) UpdateCard(id int, card models.Card, listIDs []int) (models.Card,
 func (c *Core) DuplicateCard(id int) (models.Card, error) {
 	cur, err := c.GetCard(id, "", "")
 	if err != nil {
-		return models.Card{}, err
+		return models.Card{}, fmt.Errorf("fetching card %d: %w", id, err)
 	}
 
 	listIDs := make([]int, 0, len(cur.ParsedLists()))
@@ -222,7 +222,7 @@ func (c *Core) validateCardListIDs(ids []int) error {
 
 	listTypes, err := c.GetListTypes(ids, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("fetching list types: %w", err)
 	}
 
 	if len(listTypes) != len(ids) {

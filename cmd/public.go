@@ -586,7 +586,7 @@ func (a *App) SubscriptionForm(c *echo.Context) error {
 			return err
 		}
 
-		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
+		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", e.Message))
 	}
 
 	hasOptin, err := a.processSubForm(c)
@@ -865,7 +865,6 @@ func (a *App) processSubForm(c *echo.Context) (bool, error) {
 // subscribeSub adds a subscriber to the given lists, reusing an existing
 // subscriber instead of failing when the e-mail is already known.
 func (a *App) subscribeSub(name, email string, listUUIDs []string) (core.SubscriptionResult, error) {
-	// Validate fields.
 	if len(email) > 1000 {
 		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidEmail"))
 	}
@@ -887,7 +886,7 @@ func (a *App) subscribeSub(name, email string, listUUIDs []string) (core.Subscri
 	// Fetch the list types and ensure that they are not private.
 	listTypes, err := a.core.GetListTypes(nil, listUUIDs)
 	if err != nil {
-		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("%s", err.(*echo.HTTPError).Message))
+		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusInternalServerError, err.(*echo.HTTPError).Message)
 	}
 
 	for _, t := range listTypes {
@@ -903,7 +902,7 @@ func (a *App) subscribeSub(name, email string, listUUIDs []string) (core.Subscri
 	}, listUUIDs)
 	if err != nil {
 		if e, ok := err.(*echo.HTTPError); ok {
-			return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%s", e.Message))
+			return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusBadRequest, e.Message)
 		}
 		return core.SubscriptionResult{}, echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorProcessingRequest"))
 	}

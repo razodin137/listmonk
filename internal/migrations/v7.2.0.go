@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -22,7 +23,7 @@ func V7_2_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		CREATE INDEX IF NOT EXISTS idx_card_joins_subscriber_id ON card_joins(subscriber_id);
 		CREATE INDEX IF NOT EXISTS idx_card_joins_created_at ON card_joins(created_at);
 	`); err != nil {
-		return err
+		return fmt.Errorf("creating card joins table: %w", err)
 	}
 
 	return nil
