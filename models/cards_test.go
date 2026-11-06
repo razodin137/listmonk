@@ -53,6 +53,30 @@ func TestCardParsedListsEmpty(t *testing.T) {
 	}
 }
 
+func TestCardHasPrivateList(t *testing.T) {
+	cases := []struct {
+		name  string
+		lists types.JSONText
+		want  bool
+	}{
+		{"no lists", nil, false},
+		{"only public", types.JSONText(`[{"id": 1, "type": "public"}]`), false},
+		{"private among public", types.JSONText(`[
+			{"id": 1, "type": "public"},
+			{"id": 2, "type": "private"}
+		]`), true},
+		{"only private", types.JSONText(`[{"id": 2, "type": "private"}]`), true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (Card{Lists: tc.lists}).HasPrivateList(); got != tc.want {
+				t.Errorf("HasPrivateList() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCardParsedListIDs(t *testing.T) {
 	c := Card{Lists: types.JSONText(`[
 		{"id": 3, "name": "One"},

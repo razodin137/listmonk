@@ -84,10 +84,15 @@ func (c *Core) CreateCard(card models.Card, listIDs []int) (models.Card, error) 
 		return models.Card{}, err
 	}
 
+	listIDs = normalizeCardListIDs(listIDs)
+	if err := c.validateCardListIDs(listIDs); err != nil {
+		return models.Card{}, err
+	}
+
 	var newID int
 	if err := c.q.CreateCard.Get(&newID, uu.String(), name, slug, card.Description,
 		normalizeCardSuccessMessage(card.SuccessMessage), normalizeCardRedirectURL(card.RedirectURL),
-		pq.Array(normalizeCardListIDs(listIDs))); err != nil {
+		pq.Array(listIDs)); err != nil {
 		c.log.Printf("error creating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorCreating", "name", "card", "error", pqErrMsg(err)))
@@ -125,11 +130,16 @@ func (c *Core) UpdateCard(id int, card models.Card, listIDs []int) (models.Card,
 
 	if listIDs == nil {
 		listIDs = cur.ParsedListIDs()
+	} else {
+		listIDs = normalizeCardListIDs(listIDs)
+		if err := c.validateCardListIDs(listIDs); err != nil {
+			return models.Card{}, err
+		}
 	}
 
 	if _, err := c.q.UpdateCard.Exec(id, name, slug, card.Description,
 		normalizeCardSuccessMessage(card.SuccessMessage), normalizeCardRedirectURL(card.RedirectURL),
-		pq.Array(normalizeCardListIDs(listIDs))); err != nil {
+		pq.Array(listIDs)); err != nil {
 		c.log.Printf("error updating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "card", "error", pqErrMsg(err)))
@@ -146,7 +156,12 @@ func (c *Core) DuplicateCard(id int) (models.Card, error) {
 		return models.Card{}, err
 	}
 
-	listIDs := cur.ParsedListIDs()
+	listIDs := make([]int, 0, len(cur.ParsedLists()))
+	for _, l := range cur.ParsedLists() {
+		if l.Type == models.ListTypePublic {
+			listIDs = append(listIDs, l.ID)
+		}
+	}
 
 	name := fmt.Sprintf("%s (copy)", cur.Name)
 	return c.CreateCard(models.Card{
@@ -176,6 +191,33 @@ func (c *Core) DeleteCard(id int) error {
 		c.log.Printf("error deleting card: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorDeleting", "name", "card", "error", pqErrMsg(err)))
+	}
+
+	return nil
+}
+
+// validateCardListIDs ensures the given list IDs exist and are public. Cards
+// may only pin public lists.
+func (c *Core) validateCardListIDs(ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	listTypes, err := c.GetListTypes(ids, nil)
+	if err != nil {
+		return err
+	}
+
+	if len(listTypes) != len(ids) {
+		return echo.NewHTTPError(http.StatusBadRequest,
+			c.i18n.Ts("globals.messages.invalidFields", "name", "lists"))
+	}
+
+	for _, typ := range listTypes {
+		if typ == models.ListTypePrivate {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				c.i18n.Ts("globals.messages.invalidFields", "name", "lists"))
+		}
 	}
 
 	return nil

@@ -466,6 +466,11 @@ func (a *App) CardSubscription(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadGateway, a.i18n.T("public.invalidFeature"))
 	}
 
+	if card.HasPrivateList() {
+		return c.Render(http.StatusBadRequest, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsSelected")))
+	}
+
 	if err := a.verifyCaptcha(c); err != nil {
 		e, ok := err.(*echo.HTTPError)
 		if !ok {

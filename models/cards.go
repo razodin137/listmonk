@@ -76,6 +76,18 @@ func (c Card) ParsedLists() []CardList {
 	return out
 }
 
+// HasPrivateList reports whether any list pinned to the card has become
+// private.
+func (c Card) HasPrivateList() bool {
+	for _, l := range c.ParsedLists() {
+		if l.Type == ListTypePrivate {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ParsedListIDs returns the IDs of the lists pinned to the card.
 func (c Card) ParsedListIDs() []int {
 	lists := c.ParsedLists()
