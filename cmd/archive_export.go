@@ -161,8 +161,13 @@ func (a *App) ExportArchive(dir string) error {
 	}
 	data = append(data, '\n')
 
+	posts, err := archiveExportFiles(entries)
+	if err != nil {
+		return fmt.Errorf("rendering archive posts: %w", err)
+	}
+
 	var (
-		files              = append(archiveExportFiles(entries), archiveStaticFiles(entries)...)
+		files              = append(posts, archiveStaticFiles(entries)...)
 		written, unchanged int
 	)
 
@@ -196,21 +201,42 @@ func (a *App) ExportArchive(dir string) error {
 
 // archiveExportFiles names each campaign file and appends a numeric suffix
 // when two campaigns resolve to the same name.
-func archiveExportFiles(entries []campArchiveEntry) []archiveExportFile {
+func archiveExportFiles(entries []campArchiveEntry) ([]archiveExportFile, error) {
 	var (
 		out  = make([]archiveExportFile, 0, len(entries))
 		used = make(map[string]struct{}, len(entries))
 	)
 
 	for _, entry := range entries {
+		body, err := archivePostFile(entry)
+		if err != nil {
+			return nil, err
+		}
+
 		name := uniqueArchiveFileName(archiveFileName(entry.Slug), used)
 		out = append(out, archiveExportFile{
 			Name: name + archivePostExt,
-			Body: entry.Body,
+			Body: body,
 		})
 	}
 
-	return out
+	return out, nil
+}
+
+// archivePostFile renders one campaign as a Hugo post with YAML front matter
+// followed by the rendered HTML body.
+func archivePostFile(entry campArchiveEntry) (string, error) {
+	post := models.ArchivePost{
+		Title:       entry.Title,
+		Slug:        entry.Slug,
+		Description: models.ArchiveDescription(entry.Body),
+		Tags:        entry.Tags,
+	}
+	if entry.Date.Valid {
+		post.Date = entry.Date.Time
+	}
+
+	return models.RenderArchivePost(post, entry.Body)
 }
 
 // archiveFileName turns a slug into a single safe file name component.
