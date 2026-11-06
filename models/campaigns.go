@@ -309,7 +309,7 @@ func (c *Campaign) renderBody() (string, error) {
 		return c.Body, nil
 	}
 
-	out, warnings, err := renderMarkdown([]byte(c.Body), c.mediaResolver())
+	out, warnings, err := renderMarkdown([]byte(bodyWithoutFrontMatter(c.Body)), c.mediaResolver())
 	if err != nil {
 		return "", err
 	}
@@ -355,7 +355,7 @@ func (c *Campaign) ConvertContent(from, to string) (string, error) {
 	var out string
 	if from == CampaignContentTypeMarkdown &&
 		(to == CampaignContentTypeHTML || to == CampaignContentTypeRichtext) {
-		html, warnings, err := renderMarkdown([]byte(c.Body), c.mediaResolver())
+		html, warnings, err := renderMarkdown([]byte(bodyWithoutFrontMatter(c.Body)), c.mediaResolver())
 		if err != nil {
 			return out, err
 		}

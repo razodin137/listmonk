@@ -878,6 +878,12 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 		c.BodySource.Valid = false
 	}
 
+	if c.ContentType == models.CampaignContentTypeMarkdown {
+		if _, err := c.ApplyFrontMatter(); err != nil {
+			return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidBody", "error", err.Error()))
+		}
+	}
+
 	// If there's a "send_at" date, it should be in the future.
 	if c.SendAt.Valid {
 		if c.SendAt.Time.Before(time.Now()) {
