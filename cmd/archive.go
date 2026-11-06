@@ -189,23 +189,47 @@ func (a *App) CampaignArchivePage(c *echo.Context) error {
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	// "Compile" the campaign template with appropriate data.
-	out, err := a.compileArchiveCampaigns([]models.Campaign{pubCamp})
-	if err != nil {
+	// Resolve data-embed images and compile the campaign body without the
+	// e-mail template wrapper so it can sit inside the reading layout.
+	a.manager.ApplyArchiveImages(&pubCamp)
+	if err := pubCamp.CompileContentTemplate(a.manager.TemplateFuncs(&pubCamp)); err != nil {
+		a.log.Printf("error compiling campaign content: %v", err)
 		return c.Render(http.StatusInternalServerError, tplMessage,
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	// Render the campaign body.
-	camp := out[0].Campaign
-	msg, err := a.manager.NewCampaignMessage(camp, out[0].Subscriber)
+	// Load the dummy subscriber meta used to render the campaign.
+	var sub models.Subscriber
+	if err := json.Unmarshal(pubCamp.ArchiveMeta, &sub); err != nil {
+		a.log.Printf("error unmarshalling campaign archive meta: %v", err)
+		return c.Render(http.StatusInternalServerError, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
+	}
+
+	msg, err := a.manager.NewCampaignMessage(&pubCamp, sub)
 	if err != nil {
 		a.log.Printf("error rendering campaign: %v", err)
 		return c.Render(http.StatusInternalServerError, tplMessage,
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	return c.HTML(http.StatusOK, string(msg.Body()))
+	// Sent campaigns show the send time; fall back to the creation time.
+	date := pubCamp.CreatedAt
+	if pubCamp.SendAt.Valid {
+		date = pubCamp.SendAt
+	}
+
+	return c.Render(http.StatusOK, "archive-campaign", struct {
+		Title      string
+		Date       null.Time
+		Body       template.HTML
+		ArchiveURL string
+	}{
+		Title:      msg.Subject(),
+		Date:       date,
+		Body:       template.HTML(msg.Body()),
+		ArchiveURL: a.urlCfg.ArchiveURL,
+	})
 }
 
 // CampaignArchivePageLatest renders the latest public campaign.

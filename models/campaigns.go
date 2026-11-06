@@ -222,6 +222,17 @@ func (c *Campaign) CompileArchiveTemplate(f template.FuncMap) error {
 	return c.compileTemplate(body, f)
 }
 
+// CompileContentTemplate compiles a campaign body as a standalone HTML
+// fragment without the e-mail template wrapper. It is used to render a
+// campaign inside a web page, such as the public archive.
+func (c *Campaign) CompileContentTemplate(f template.FuncMap) error {
+	if err := c.GenerateAltBody(); err != nil {
+		return err
+	}
+
+	return c.compileTemplate("", f)
+}
+
 // compileTemplate compiles a campaign body into the given base template,
 // rendering Markdown first so every target gets the same HTML.
 func (c *Campaign) compileTemplate(tplBody string, f template.FuncMap) error {

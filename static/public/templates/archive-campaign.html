@@ -1,0 +1,21 @@
+{{ define "archive-campaign" }}
+{{ template "header" . }}
+
+<article class="archive-campaign">
+	<p class="back">
+		<a href="{{ .Data.ArchiveURL }}">&larr; {{ L.T "public.archiveTitle" }}</a>
+	</p>
+
+	<h1>{{ .Data.Title }}</h1>
+
+	{{ if .Data.Date.Valid }}
+		<p class="date">{{ NiceDate .Data.Date }}</p>
+	{{ end }}
+
+	<div class="body">
+		{{ .Data.Body }}
+	</div>
+</article>
+
+{{ template "footer" . }}
+{{ end }}

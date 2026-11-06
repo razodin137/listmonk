@@ -48,6 +48,23 @@ func TestMarkdownRendersInEmailAndArchive(t *testing.T) {
 	}
 }
 
+func TestCompileContentTemplateOmitsWrapper(t *testing.T) {
+	c := Campaign{
+		ContentType:         CampaignContentTypeMarkdown,
+		Body:                testMarkdownBody,
+		TemplateBody:        `EMAIL<html><body>{{ template "content" . }}</body></html>`,
+		ArchiveTemplateBody: `ARCHIVE<html><body>{{ template "content" . }}</body></html>`,
+	}
+
+	content := renderTestCampaign(t, &c, c.CompileContentTemplate)
+	if strings.Contains(content, "EMAIL") || strings.Contains(content, "ARCHIVE") {
+		t.Fatalf("content template included a wrapper: %q", content)
+	}
+	if !strings.Contains(content, "<h1") || !strings.Contains(content, "<li>one</li>") {
+		t.Fatalf("markdown was not rendered: %q", content)
+	}
+}
+
 func TestArchiveTemplateFallsBackToCampaignTemplate(t *testing.T) {
 	c := Campaign{
 		ContentType:  CampaignContentTypeMarkdown,
