@@ -219,6 +219,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 
 		g.GET("/api/campaigns", pm(a.GetCampaigns, auth.PermCampaignsGetAll, auth.PermCampaignsGet))
 		g.GET("/api/campaigns/running/stats", pm(a.GetRunningCampaignStats, auth.PermCampaignsGetAll, auth.PermCampaignsGet))
+		g.POST("/api/campaigns/import", pm(a.ImportCampaignMarkdown, auth.PermCampaignsManageAll, auth.PermCampaignsManage))
 		g.GET("/api/campaigns/:id", pm(hasID(a.GetCampaign), auth.PermCampaignsGetAll, auth.PermCampaignsGet))
 		g.GET("/api/campaigns/analytics/:type", pm(a.GetCampaignViewAnalytics, auth.PermCampaignsGetAnalytics))
 		g.GET("/api/campaigns/:id/preview", pm(hasID(a.PreviewCampaign), auth.PermCampaignsGetAll, auth.PermCampaignsGet))

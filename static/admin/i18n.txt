@@ -40,6 +40,9 @@ editor.confirmSwitchFormat
 globals.messages.confirmOverwriteContent
 campaigns.testSent
 campaigns.attachmentAdded
+campaigns.dropMarkdown
+campaigns.importMarkdownDone
+campaigns.importMarkdownOnly
 
 # Rich-text editor (strings used by JS in richtext-editor.js).
 globals.terms.none

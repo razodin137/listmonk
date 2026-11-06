@@ -16,7 +16,16 @@
 	const _sel = {{ ToJSON $d.SelectedListIDs }};
 </script>
 
-<section class="campaign" x-data="campaignView(_camp, _sel)" @keydown.ctrl.s.window.prevent="onSaveShortcut" @keydown.meta.s.window.prevent="onSaveShortcut">
+<section class="campaign" x-data="campaignView(_camp, _sel)" @keydown.ctrl.s.window.prevent="onSaveShortcut" @keydown.meta.s.window.prevent="onSaveShortcut" @dragenter.prevent="onDragEnter" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop">
+	<div class="campaign-drop" x-cloak x-show="isDragging" aria-hidden="true">
+		<div>
+			{{ Icon "upload" }}
+			<strong>{{ .L.T "campaigns.dropMarkdown" }}</strong>
+			<small>{{ .L.T "campaigns.dropMarkdownHelp" }}</small>
+		</div>
+	</div>
+	<input type="file" x-ref="markdownFile" accept=".md,.markdown,text/markdown" hidden @change="onPickMarkdown" />
+
 	{{- $showActions := and (not $isNew) $canManage -}}
 	{{- $showPreview := not $isNew -}}
 	{{- $showRight := or $showActions $showPreview -}}

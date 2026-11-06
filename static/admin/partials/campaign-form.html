@@ -6,6 +6,9 @@
 {{- $submit := "onSave" -}}{{ if $isNew }}{{ $submit = "onCreate" }}{{ end }}
 <div class="page-content content">
 	<form @submit.prevent="{{ $submit }}">
+		<div class="hstack justify-end mb-4">
+			<button type="button" class="outline small" @click="$refs.markdownFile.click()" :disabled="!canEdit">{{ Icon "upload" }} {{ $root.L.T "campaigns.importMarkdown" }}</button>
+		</div>
 		<section>
 			<fieldset class="card">
 				<legend>{{ $root.L.Tc "globals.terms.campaign" 1 }}</legend>

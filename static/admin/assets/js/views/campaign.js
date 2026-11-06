@@ -48,6 +48,8 @@ function component(camp, sel) {
     contentReady: false,
     editorReady: false,
     visualTemplateId: null,
+    isDragging: false,
+    _dragDepth: 0,
     _mediaTarget: null,
     _saved: false,
 
@@ -108,6 +110,7 @@ function component(camp, sel) {
         }
         if (e.detail?.tab?.id === 'content') {
           this.contentReady = true;
+          this.$nextTick(() => this._syncEditor());
         }
       });
 
@@ -121,6 +124,122 @@ function component(camp, sel) {
           this.onPickMedia(e.data.media);
         }
       });
+    },
+
+    // ===============
+    // Markdown import via drag and drop.
+    _hasFiles(e) {
+      return Array.from(e.dataTransfer?.types || []).includes('Files');
+    },
+
+    onDragEnter(e) {
+      if (!this.canEdit || !this._hasFiles(e)) {
+        return;
+      }
+      this._dragDepth += 1;
+      this.isDragging = true;
+    },
+
+    onDragOver(e) {
+      if (this.canEdit && this._hasFiles(e)) {
+        this.isDragging = true;
+      }
+    },
+
+    onDragLeave() {
+      this._dragDepth = Math.max(0, this._dragDepth - 1);
+      this.isDragging = this._dragDepth > 0;
+    },
+
+    async onDrop(e) {
+      this._dragDepth = 0;
+      this.isDragging = false;
+
+      if (!this.canEdit) {
+        return;
+      }
+
+      const file = e.dataTransfer?.files?.[0];
+      if (file) {
+        await this._importMarkdownFile(file);
+      }
+    },
+
+    async onPickMarkdown(e) {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (file) {
+        await this._importMarkdownFile(file);
+      }
+    },
+
+    async _importMarkdownFile(file) {
+      if (!/\.(md|markdown)$/i.test(file.name)) {
+        u.toast(i18n.t('campaigns.importMarkdownOnly'), 'danger');
+        return;
+      }
+
+      let text = '';
+      try {
+        text = await file.text();
+      } catch (err) {
+        u.toast(err.message, 'danger');
+        return;
+      }
+
+      try {
+        const d = await api('campaigns.import', '/campaigns/import', 'POST', { body: text });
+        this._applyMarkdownImport(d);
+        u.toast(i18n.ts('campaigns.importMarkdownDone', { name: file.name }));
+      } catch (err) {
+        // api() already surfaced the error.
+      }
+    },
+
+    _applyMarkdownImport(d) {
+      const title = (d.name || d.title || '').trim();
+      if (title) {
+        this.form.name = title;
+        this.form.subject = d.subject || title;
+      }
+
+      if (Array.isArray(d.tags) && d.tags.length > 0) {
+        this.form.tags = d.tags;
+      }
+
+      if (d.slug) {
+        this.form.archive_slug = d.slug;
+      }
+
+      if (d.description || d.date) {
+        let meta = {};
+        try {
+          meta = JSON.parse(this.form.archiveMetaStr || '{}');
+        } catch (err) {
+          meta = {};
+        }
+        if (d.description) {
+          meta.description = d.description;
+        }
+        if (d.date) {
+          meta.date = d.date;
+        }
+        this.form.archiveMetaStr = JSON.stringify(meta, null, 4);
+      }
+
+      this.form.content_type = 'markdown';
+      this.form.body = d.body || '';
+      this.form.body_source = null;
+      this.form.altbody = null;
+
+      // The editor only mounts when the content tab has been opened. Otherwise
+      // the tab's ot-tab-change handler syncs the imported body on first show.
+      if (this.activeTab === 'content') {
+        this.contentReady = true;
+      }
+      if (this.contentReady) {
+        this.$nextTick(() => this._syncEditor());
+      }
     },
 
     // ===============
@@ -240,8 +359,9 @@ function component(camp, sel) {
       }
 
       let archiveMeta = {};
-      if (this.form.archive && this.form.archiveMetaStr) {
-        try { archiveMeta = JSON.parse(this.form.archiveMetaStr); } catch (e) { u.toast(e.toString(), 'danger'); return null; }
+      const am = (this.form.archiveMetaStr || '').trim();
+      if (am && am !== '{}') {
+        try { archiveMeta = JSON.parse(am); } catch (e) { u.toast(e.toString(), 'danger'); return null; }
       }
 
       return {
@@ -275,7 +395,9 @@ function component(camp, sel) {
       }
 
       const data = {
-        archive_slug: this.form.subject,
+        archive_slug: p.archive_slug || p.subject,
+        archive_meta: p.archive_meta,
+        body: p.body,
         name: p.name,
         subject: p.subject,
         lists: p.lists,

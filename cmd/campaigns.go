@@ -84,6 +84,79 @@ type campaignView struct {
 	ArchiveURL      string
 }
 
+// campaignImportReq is a raw Markdown document submitted from the campaign
+// screen. It is parsed without being saved.
+type campaignImportReq struct {
+	Body string `json:"body"`
+}
+
+// campaignImport is the parsed form of a Markdown document. Fields that were
+// not set in the front matter are left empty so the client can retain the
+// values already in the form.
+type campaignImport struct {
+	Title       string   `json:"title"`
+	Name        string   `json:"name"`
+	Subject     string   `json:"subject"`
+	Slug        string   `json:"slug"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+	Date        string   `json:"date"`
+	Body        string   `json:"body"`
+	FrontMatter bool     `json:"front_matter"`
+}
+
+// ImportCampaignMarkdown parses a dropped Markdown document and returns its
+// front matter and body for filling the campaign form. Nothing is persisted.
+func (a *App) ImportCampaignMarkdown(c *echo.Context) error {
+	var o campaignImportReq
+	if err := c.Bind(&o); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(o.Body) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Empty Markdown document.")
+	}
+
+	out, err := parseCampaignImport(o.Body)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, okResp{out})
+}
+
+// parseCampaignImport splits a Markdown document into the fields used by the
+// campaign form.
+func parseCampaignImport(body string) (campaignImport, error) {
+	fm, rest, ok, err := models.ParseFrontMatter(body)
+	if err != nil {
+		return campaignImport{}, err
+	}
+
+	title := strings.TrimSpace(fm.Title)
+	date := ""
+	if !fm.Date.IsZero() {
+		date = fm.Date.Format(time.RFC3339)
+	}
+
+	tags := fm.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	return campaignImport{
+		Title:       title,
+		Name:        title,
+		Subject:     title,
+		Slug:        strings.TrimSpace(fm.Slug),
+		Description: strings.TrimSpace(fm.Description),
+		Tags:        tags,
+		Date:        date,
+		Body:        rest,
+		FrontMatter: ok,
+	}, nil
+}
+
 // ViewNewCampaign renders the new campaign page (only the "campaign" tab).
 func (a *App) ViewNewCampaign(c *echo.Context) error {
 	var tpls []models.Template
