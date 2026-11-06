@@ -100,6 +100,34 @@ func (s *fakeSubscriberStore) addLabels(id int, listUUIDs []string) {
 	}
 }
 
+func TestPendingOptinListIDsOnlyIncludesRequestedLists(t *testing.T) {
+	sub := models.Subscriber{Lists: types.JSONText(`[
+		{"id": 1, "uuid": "card-double", "optin": "double", "subscription_status": "unconfirmed"},
+		{"id": 2, "uuid": "card-confirmed", "optin": "double", "subscription_status": "confirmed"},
+		{"id": 3, "uuid": "other-double", "optin": "double", "subscription_status": "unconfirmed"},
+		{"id": 4, "uuid": "card-single", "optin": "single", "subscription_status": "unconfirmed"}
+	]`)}
+
+	cases := []struct {
+		name  string
+		ids   []int
+		uuids []string
+		want  []int
+	}{
+		{"by uuid", nil, []string{"card-double", "card-confirmed", "card-single"}, []int{1}},
+		{"by id", []int{1, 2}, nil, []int{1}},
+		{"all pending", nil, nil, []int{1, 3}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := pendingOptinListIDs(sub, tc.ids, tc.uuids); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("pending = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSubscribeTwiceAddsListsToExistingSubscriber(t *testing.T) {
 	store := newFakeSubscriberStore()
 

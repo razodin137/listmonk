@@ -392,7 +392,7 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 	hasOptin := false
 	if !preconfirm && c.consts.SendOptinConfirmation {
 		// Send a confirmation e-mail (if there are any double opt-in lists).
-		num, err := c.sendOptinConfirmation(out, listIDs, assertOptin)
+		num, err := c.sendOptinConfirmation(out, listIDs, listUUIDs, assertOptin)
 		if assertOptin && err != nil {
 			return out, hasOptin, err
 		}
@@ -528,7 +528,7 @@ func (c *Core) UpdateSubscriberWithLists(id int, sub models.Subscriber, listIDs 
 	hasOptin := false
 	if !preconfirm && c.consts.SendOptinConfirmation {
 		// Send a confirmation e-mail (if there are any double opt-in lists).
-		num, err := c.sendOptinConfirmation(out, listIDs, assertOptin)
+		num, err := c.sendOptinConfirmation(out, listIDs, listUUIDs, assertOptin)
 		if assertOptin && err != nil {
 			return out, hasOptin, err
 		}
@@ -826,14 +826,11 @@ func (c *Core) execSubQueryTpl(searchStr, queryExp, baseQueryTpl string, listIDs
 }
 
 // sendOptinConfirmation throttles opt-in mails sent on public subscriptions.
-func (c *Core) sendOptinConfirmation(sub models.Subscriber, listIDs []int, public bool) (int, error) {
+// When public is set, only the given list IDs or UUIDs are considered, so a
+// public signup never opts a subscriber in to lists it does not show.
+func (c *Core) sendOptinConfirmation(sub models.Subscriber, listIDs []int, listUUIDs []string, public bool) (int, error) {
 	if public {
-		var pending []int
-		for _, l := range sub.ParsedLists() {
-			if l.Optin == models.ListOptinDouble && l.SubscriptionStatus == models.SubscriptionStatusUnconfirmed {
-				pending = append(pending, l.ID)
-			}
-		}
+		pending := pendingOptinListIDs(sub, listIDs, listUUIDs)
 		if len(pending) == 0 {
 			return 0, nil
 		}
@@ -849,4 +846,39 @@ func (c *Core) sendOptinConfirmation(sub models.Subscriber, listIDs []int, publi
 	}
 
 	return c.h.SendOptinConfirmation(sub, listIDs)
+}
+
+// pendingOptinListIDs returns the IDs of double opt-in lists that the
+// subscriber still has to confirm. If list IDs or UUIDs are given, only those
+// lists are considered.
+func pendingOptinListIDs(sub models.Subscriber, listIDs []int, listUUIDs []string) []int {
+	ids := make(map[int]struct{}, len(listIDs))
+	for _, id := range listIDs {
+		ids[id] = struct{}{}
+	}
+
+	uuids := make(map[string]struct{}, len(listUUIDs))
+	for _, uuid := range listUUIDs {
+		uuids[uuid] = struct{}{}
+	}
+
+	var pending []int
+	for _, l := range sub.ParsedLists() {
+		if l.Optin != models.ListOptinDouble || l.SubscriptionStatus != models.SubscriptionStatusUnconfirmed {
+			continue
+		}
+		if len(ids) > 0 {
+			if _, ok := ids[l.ID]; !ok {
+				continue
+			}
+		} else if len(uuids) > 0 {
+			if _, ok := uuids[l.UUID]; !ok {
+				continue
+			}
+		}
+
+		pending = append(pending, l.ID)
+	}
+
+	return pending
 }
