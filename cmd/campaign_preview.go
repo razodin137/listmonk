@@ -257,7 +257,7 @@ func (a *App) campaignArchivePreviewPage(camp models.Campaign) (string, error) {
 		return "", fmt.Errorf("compiling archive preview: %w", err)
 	}
 
-	data := a.archivePageData(models.MakeArchiveTitle(msg.Subject()), campaignArchiveDate(camp), template.HTML(msg.Body()))
+	data := a.archivePageData(camp.ArchiveTitle(), campaignArchiveDate(camp), template.HTML(msg.Body()))
 
 	var b bytes.Buffer
 	if err := archive.RenderPage(&b, data); err != nil {

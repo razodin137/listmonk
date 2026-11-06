@@ -52,6 +52,7 @@ function component(camp, sel) {
     _dragDepth: 0,
     _mediaTarget: null,
     _saved: false,
+    subjectTouched: (c.subject || '') !== '' && (c.subject || '') !== (c.name || ''),
 
     preview: {
       title: c.name || '', url: '', archiveUrl: '', loading: true, templateID: null, archiveTemplateID: null, contentType: '', archiveMeta: '', body: '',
@@ -124,6 +125,17 @@ function component(camp, sel) {
           this.onPickMedia(e.data.media);
         }
       });
+    },
+
+    // The subject follows the title until it is edited on its own.
+    onNameInput() {
+      if (!this.subjectTouched) {
+        this.form.subject = this.form.name;
+      }
+    },
+
+    onSubjectInput() {
+      this.subjectTouched = this.form.subject !== this.form.name;
     },
 
     // ===============
@@ -200,7 +212,11 @@ function component(camp, sel) {
       const title = (d.name || d.title || '').trim();
       if (title) {
         this.form.name = title;
+      }
+
+      if (title || d.subject) {
         this.form.subject = d.subject || title;
+        this.subjectTouched = !!(d.subject && d.subject !== title);
       }
 
       if (Array.isArray(d.tags) && d.tags.length > 0) {
@@ -399,7 +415,7 @@ function component(camp, sel) {
       }
 
       const data = {
-        archive_slug: p.archive_slug || p.subject,
+        archive_slug: p.archive_slug || p.name,
         archive_meta: p.archive_meta,
         body: p.body,
         name: p.name,

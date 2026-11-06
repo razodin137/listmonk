@@ -100,6 +100,45 @@ func TestMakeArchiveTitle(t *testing.T) {
 	}
 }
 
+func TestCampaignArchiveTitleUsesNameNotSubject(t *testing.T) {
+	c := Campaign{
+		Name:    "  The post title  ",
+		Subject: "Re: A different inbox subject",
+	}
+
+	if got, want := c.ArchiveTitle(), "The post title"; got != want {
+		t.Fatalf("ArchiveTitle() = %q, want %q", got, want)
+	}
+}
+
+func TestCampaignArchiveTitleFallsBackToSubject(t *testing.T) {
+	c := Campaign{Subject: "Fallback subject"}
+
+	if got, want := c.ArchiveTitle(), "Fallback subject"; got != want {
+		t.Fatalf("ArchiveTitle() = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultSubjectFillsOnlyWhenEmpty(t *testing.T) {
+	cases := map[string]struct {
+		c       Campaign
+		subject string
+	}{
+		"empty subject":       {c: Campaign{Name: "Post title"}, subject: "Post title"},
+		"whitespace subject":  {c: Campaign{Name: "Post title", Subject: "   "}, subject: "Post title"},
+		"subject already set": {c: Campaign{Name: "Post title", Subject: "Inbox subject"}, subject: "Inbox subject"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			tc.c.DefaultSubject()
+			if tc.c.Subject != tc.subject {
+				t.Fatalf("subject = %q, want %q", tc.c.Subject, tc.subject)
+			}
+		})
+	}
+}
+
 func TestCompileContentTemplateOmitsWrapper(t *testing.T) {
 	c := Campaign{
 		ContentType:         CampaignContentTypeMarkdown,

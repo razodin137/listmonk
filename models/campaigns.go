@@ -48,11 +48,29 @@ func MakeArchiveTitle(subject string) string {
 	return strings.Join(strings.Fields(title), " ")
 }
 
-// MakeArchiveSlug derives a URL-safe archive slug from a subject. Empty
-// subjects become "untitled", and slugs already present in used get a
-// numeric suffix so two subjects never share an address.
-func MakeArchiveSlug(subject string, used map[string]struct{}) string {
-	slug := MakeSlug(subject)
+// ArchiveTitle returns the post title used for the archive heading, slug and
+// exported front matter. The campaign name is the title; an empty name falls
+// back to the subject so older campaigns keep their heading.
+func (c Campaign) ArchiveTitle() string {
+	if title := strings.TrimSpace(c.Name); title != "" {
+		return title
+	}
+
+	return MakeArchiveTitle(c.Subject)
+}
+
+// DefaultSubject fills an empty email subject from the campaign title.
+func (c *Campaign) DefaultSubject() {
+	if strings.TrimSpace(c.Subject) == "" {
+		c.Subject = strings.TrimSpace(c.Name)
+	}
+}
+
+// MakeArchiveSlug derives a URL-safe archive slug from a title. Empty
+// titles become "untitled", and slugs already present in used get a
+// numeric suffix so two titles never share an address.
+func MakeArchiveSlug(title string, used map[string]struct{}) string {
+	slug := MakeSlug(title)
 	if slug == "" {
 		slug = "untitled"
 	}

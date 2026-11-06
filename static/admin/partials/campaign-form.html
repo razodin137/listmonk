@@ -14,12 +14,12 @@
 				<legend>{{ $root.L.Tc "globals.terms.campaign" 1 }}</legend>
 				<label data-field>
 					{{ $root.L.T "globals.fields.name" }}
-					<input name="name" maxlength="200" x-model="form.name" :disabled="!canEdit" autofocus required />
+					<input name="name" maxlength="200" x-model="form.name" @input="onNameInput" :disabled="!canEdit" autofocus required />
 				</label>
 
 				<label data-field>
 					{{ $root.L.T "globals.fields.subject" }}
-					<input name="subject" maxlength="5000" x-model="form.subject" :disabled="!canEdit" required />
+					<input name="subject" maxlength="5000" x-model="form.subject" @input="onSubjectInput" :disabled="!canEdit" />
 				</label>
 
 				<label data-field>

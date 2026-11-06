@@ -135,6 +135,11 @@ func parseCampaignImport(body string) (campaignImport, error) {
 	}
 
 	title := strings.TrimSpace(fm.Title)
+	subject := strings.TrimSpace(fm.Subject)
+	if subject == "" {
+		subject = title
+	}
+
 	date := ""
 	if !fm.Date.IsZero() {
 		date = fm.Date.Format(time.RFC3339)
@@ -148,7 +153,7 @@ func parseCampaignImport(body string) (campaignImport, error) {
 	return campaignImport{
 		Title:       title,
 		Name:        title,
-		Subject:     title,
+		Subject:     subject,
 		Slug:        strings.TrimSpace(fm.Slug),
 		Description: strings.TrimSpace(fm.Description),
 		Tags:        tags,
@@ -253,7 +258,7 @@ func (a *App) ViewCampaign(c *echo.Context) error {
 
 	// Public archive URL uses the same stored or derived slug as the export.
 	archiveURL, _ := url.JoinPath(a.urlCfg.ArchiveURL,
-		campaignArchiveSlug(camp, models.MakeArchiveTitle(camp.Subject), map[string]struct{}{}))
+		campaignArchiveSlug(camp, camp.ArchiveTitle(), map[string]struct{}{}))
 
 	data := campaignView{
 		adminView:  newAdminView(c, camp.Name+" / "+a.i18n.T("globals.terms.campaigns"), "", "campaigns.all"),
@@ -937,15 +942,6 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 		}
 	}
 
-	if !strHasLen(c.Name, 1, stdInputMaxLen) {
-		return c, errors.New(a.i18n.T("campaigns.fieldInvalidName"))
-	}
-
-	// Larger char limit for subject as it can contain {{ go templating }} logic.
-	if !strHasLen(c.Subject, 1, 5000) {
-		return c, errors.New(a.i18n.T("campaigns.fieldInvalidSubject"))
-	}
-
 	// If no content-type is specified, default to markdown.
 	if c.ContentType != models.CampaignContentTypeRichtext &&
 		c.ContentType != models.CampaignContentTypeHTML &&
@@ -955,14 +951,28 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 		c.ContentType = models.CampaignContentTypeMarkdown
 	}
 
+	if c.ContentType == models.CampaignContentTypeMarkdown {
+		if _, err := c.ApplyFrontMatter(); err != nil {
+			return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidBody", "error", err.Error()))
+		}
+	}
+
+	if !strHasLen(c.Name, 1, stdInputMaxLen) {
+		return c, errors.New(a.i18n.T("campaigns.fieldInvalidName"))
+	}
+
+	c.DefaultSubject()
+
+	// Larger char limit for subject as it can contain {{ go templating }} logic.
+	if !strHasLen(c.Subject, 1, 5000) {
+		return c, errors.New(a.i18n.T("campaigns.fieldInvalidSubject"))
+	}
+
 	if c.ContentType != models.CampaignContentTypeVisual {
 		c.BodySource.Valid = false
 	}
 
 	if c.ContentType == models.CampaignContentTypeMarkdown {
-		if _, err := c.ApplyFrontMatter(); err != nil {
-			return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidBody", "error", err.Error()))
-		}
 		if err := c.GenerateAltBody(); err != nil {
 			return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidBody", "error", err.Error()))
 		}

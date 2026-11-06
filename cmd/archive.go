@@ -28,6 +28,7 @@ var reHTMLTag = regexp.MustCompile(`(?s)<[^>]*>`)
 
 type campArchive struct {
 	UUID      string    `json:"uuid"`
+	Title     string    `json:"title"`
 	Subject   string    `json:"subject"`
 	Content   string    `json:"content"`
 	Excerpt   string    `json:"excerpt"`
@@ -90,7 +91,7 @@ func (a *App) archiveListData(camps []campArchive) archive.ListData {
 		date := archiveDateFrom(camp.StartedAt, camp.SendAt, camp.CreatedAt)
 
 		entries = append(entries, archive.Entry{
-			Title:    models.MakeArchiveTitle(camp.Subject),
+			Title:    camp.Title,
 			Href:     camp.URL,
 			Date:     a.archiveDate(date),
 			DateTime: archiveDateTime(date),
@@ -261,7 +262,7 @@ func (a *App) buildCampaignArchiveEntries(camps models.Campaigns) ([]campArchive
 
 		out = append(out, campArchiveEntry{
 			UUID:  camp.UUID,
-			Title: models.MakeArchiveTitle(msg.Subject()),
+			Title: camp.ArchiveTitle(),
 			Date:  campaignArchiveDate(camp),
 			Tags:  campaignArchiveTags(camp),
 			Body:  string(msg.Body()),
@@ -453,7 +454,7 @@ func (a *App) CampaignArchivePage(c *echo.Context) error {
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	return a.renderArchivePage(c, a.archivePageData(models.MakeArchiveTitle(msg.Subject()),
+	return a.renderArchivePage(c, a.archivePageData(pubCamp.ArchiveTitle(),
 		campaignArchiveDate(pubCamp), template.HTML(msg.Body())))
 }
 
@@ -490,7 +491,7 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 	titles := make([]string, len(msgs))
 	for i, m := range msgs {
 		camps[i] = *m.Campaign
-		titles[i] = models.MakeArchiveTitle(m.Campaign.Subject)
+		titles[i] = m.Campaign.ArchiveTitle()
 	}
 
 	slugs := archiveSlugs(camps, titles)
@@ -501,6 +502,7 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 
 		archive := campArchive{
 			UUID:      camp.UUID,
+			Title:     camp.ArchiveTitle(),
 			Subject:   camp.Subject,
 			Excerpt:   campaignExcerpt(*camp),
 			CreatedAt: camp.CreatedAt,

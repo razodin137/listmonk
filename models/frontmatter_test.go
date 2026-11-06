@@ -132,7 +132,7 @@ func TestApplyFrontMatterWinsOverCampaignFields(t *testing.T) {
 	if !ok {
 		t.Fatal("ApplyFrontMatter() did not find a block")
 	}
-	if c.Name != "Front matter title" || c.Subject != "Front matter title" {
+	if c.Name != "Front matter title" || c.Subject != "Form subject" {
 		t.Fatalf("name = %q, subject = %q", c.Name, c.Subject)
 	}
 	if c.ArchiveSlug.String != "front-matter-slug" {
@@ -157,6 +157,55 @@ func TestApplyFrontMatterWinsOverCampaignFields(t *testing.T) {
 	}
 	if meta["date"] != "2026-11-06T00:00:00Z" {
 		t.Fatalf("date metadata = %v", meta["date"])
+	}
+}
+
+func TestApplyFrontMatterDefaultsSubjectFromTitle(t *testing.T) {
+	c := Campaign{
+		ContentType: CampaignContentTypeMarkdown,
+		Name:        "Old title",
+		Subject:     "Old title",
+		Body:        "---\ntitle: New title\n---\nBody\n",
+	}
+
+	if _, err := c.ApplyFrontMatter(); err != nil {
+		t.Fatalf("ApplyFrontMatter() error: %v", err)
+	}
+
+	if c.Name != "New title" || c.Subject != "New title" {
+		t.Fatalf("name = %q, subject = %q", c.Name, c.Subject)
+	}
+}
+
+func TestApplyFrontMatterSubjectCanDifferFromTitle(t *testing.T) {
+	c := Campaign{
+		ContentType: CampaignContentTypeMarkdown,
+		Body:        "---\ntitle: Post title\nsubject: Inbox subject\n---\nBody\n",
+	}
+
+	if _, err := c.ApplyFrontMatter(); err != nil {
+		t.Fatalf("ApplyFrontMatter() error: %v", err)
+	}
+
+	if c.Name != "Post title" || c.Subject != "Inbox subject" {
+		t.Fatalf("name = %q, subject = %q", c.Name, c.Subject)
+	}
+}
+
+func TestApplyFrontMatterKeepsExistingSubjectWhenTitleChanges(t *testing.T) {
+	c := Campaign{
+		ContentType: CampaignContentTypeMarkdown,
+		Name:        "Draft title",
+		Subject:     "Inbox subject",
+		Body:        "---\ntitle: Published title\n---\nBody\n",
+	}
+
+	if _, err := c.ApplyFrontMatter(); err != nil {
+		t.Fatalf("ApplyFrontMatter() error: %v", err)
+	}
+
+	if c.Name != "Published title" || c.Subject != "Inbox subject" {
+		t.Fatalf("name = %q, subject = %q", c.Name, c.Subject)
 	}
 }
 

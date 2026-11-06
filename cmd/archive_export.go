@@ -69,7 +69,7 @@ func (a *App) BackfillArchiveYears(dir string, years int) error {
 
 	for i := range camps {
 		camp := &camps[i]
-		title := models.MakeArchiveTitle(camp.Subject)
+		title := camp.ArchiveTitle()
 
 		if reason := archiveCampaignSkipReason(*camp, window); reason != "" {
 			skipped++
@@ -189,7 +189,7 @@ func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 
 	titles := make([]string, len(camps))
 	for i := range camps {
-		titles[i] = models.MakeArchiveTitle(camps[i].Subject)
+		titles[i] = camps[i].ArchiveTitle()
 	}
 
 	return archiveSlugs(camps, titles)[idx], nil

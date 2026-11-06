@@ -18,6 +18,7 @@ const frontMatterDelimiter = "---"
 // FrontMatter is the metadata that may precede a Markdown body.
 type FrontMatter struct {
 	Title       string
+	Subject     string
 	Slug        string
 	Description string
 	Tags        []string
@@ -42,6 +43,7 @@ func ParseFrontMatter(body string) (FrontMatter, string, bool, error) {
 
 	fm := FrontMatter{
 		Title:       frontMatterString(raw["title"]),
+		Subject:     frontMatterString(raw["subject"]),
 		Slug:        frontMatterString(raw["slug"]),
 		Description: frontMatterString(raw["description"]),
 	}
@@ -78,8 +80,16 @@ func (c *Campaign) ApplyFrontMatter() (bool, error) {
 	c.Body = body
 
 	if title := strings.TrimSpace(fm.Title); title != "" {
+		oldName, oldSubject := c.Name, c.Subject
+
 		c.Name = title
-		c.Subject = title
+		if strings.TrimSpace(oldSubject) == "" || strings.TrimSpace(oldSubject) == strings.TrimSpace(oldName) {
+			c.Subject = title
+		}
+	}
+
+	if subject := strings.TrimSpace(fm.Subject); subject != "" {
+		c.Subject = subject
 	}
 
 	if slug := strings.TrimSpace(fm.Slug); slug != "" {
