@@ -85,6 +85,8 @@ CREATE TABLE cards (
     name            TEXT NOT NULL,
     slug            TEXT NOT NULL UNIQUE,
     description     TEXT NOT NULL DEFAULT '',
+    success_message TEXT NOT NULL DEFAULT '',
+    redirect_url    TEXT NOT NULL DEFAULT '',
 
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()

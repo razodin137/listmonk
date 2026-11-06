@@ -78,12 +78,12 @@ SELECT EXISTS(
 -- name: create-card
 -- Create a card and attach its lists (labels).
 WITH c AS (
-    INSERT INTO cards (uuid, name, slug, description)
-        VALUES ($1, $2, $3, $4)
+    INSERT INTO cards (uuid, name, slug, description, success_message, redirect_url)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
 ), l AS (
     INSERT INTO card_lists (card_id, list_id)
-        SELECT (SELECT id FROM c), id FROM UNNEST($5::INT[]) AS id
+        SELECT (SELECT id FROM c), id FROM UNNEST($7::INT[]) AS id
         ON CONFLICT (card_id, list_id) DO NOTHING
 )
 SELECT id FROM c;
@@ -95,15 +95,17 @@ WITH c AS (
         name = $2,
         slug = $3,
         description = (CASE WHEN $4 != '' THEN $4 ELSE description END),
+        success_message = $5,
+        redirect_url = $6,
         updated_at = NOW()
     WHERE id = $1
     RETURNING id
 ), d AS (
     DELETE FROM card_lists
-    WHERE card_id = (SELECT id FROM c) AND list_id != ALL($5::INT[])
+    WHERE card_id = (SELECT id FROM c) AND list_id != ALL($7::INT[])
 ), i AS (
     INSERT INTO card_lists (card_id, list_id)
-        SELECT (SELECT id FROM c), id FROM UNNEST($5::INT[]) AS id
+        SELECT (SELECT id FROM c), id FROM UNNEST($7::INT[]) AS id
         ON CONFLICT (card_id, list_id) DO NOTHING
 )
 SELECT id FROM c;

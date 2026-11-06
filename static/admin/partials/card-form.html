@@ -21,6 +21,18 @@
 				<textarea name="description" maxlength="2000" x-model="form.description"></textarea>
 			</label>
 
+			<label data-field>
+				{{ $root.L.T "cards.successMessage" }}
+				<textarea name="success_message" maxlength="2000" x-model="form.success_message"></textarea>
+				<small data-hint>{{ $root.L.T "cards.successMessageHelp" }}</small>
+			</label>
+
+			<label data-field>
+				{{ $root.L.T "cards.redirectURL" }}
+				<input name="redirect_url" maxlength="2000" x-model="form.redirect_url" placeholder="/welcome" />
+				<small data-hint>{{ $root.L.T "cards.redirectURLHelp" }}</small>
+			</label>
+
 			{{ template "list-selector" dict "Root" $root "Model" "form.lists" "ListID" "card-lists" "Label" "cards.labels" "Placeholder" "cards.labelsPlaceholder" "Hint" "cards.labelsHelp" }}
 		</section>
 		<footer class="hstack justify-end mt-6">

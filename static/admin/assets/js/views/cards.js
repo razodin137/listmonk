@@ -37,6 +37,8 @@ function cardForm({ isNew = true } = {}) {
     name: "",
     slug: "",
     description: "",
+    success_message: "",
+    redirect_url: "",
     lists: []
   })
 
@@ -69,6 +71,8 @@ function cardForm({ isNew = true } = {}) {
         name: this.form.name,
         slug: this.form.slug,
         description: this.form.description || "",
+        success_message: this.form.success_message || "",
+        redirect_url: this.form.redirect_url || "",
         list_ids: this.form.lists.map((l) => l.id)
       }
     }

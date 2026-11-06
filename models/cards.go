@@ -27,11 +27,13 @@ type Cards []Card
 type Card struct {
 	Base
 
-	UUID        string         `db:"uuid" json:"uuid"`
-	Name        string         `db:"name" json:"name"`
-	Slug        string         `db:"slug" json:"slug"`
-	Description string         `db:"description" json:"description"`
-	Lists       types.JSONText `db:"lists" json:"lists"`
+	UUID           string         `db:"uuid" json:"uuid"`
+	Name           string         `db:"name" json:"name"`
+	Slug           string         `db:"slug" json:"slug"`
+	Description    string         `db:"description" json:"description"`
+	SuccessMessage string         `db:"success_message" json:"success_message"`
+	RedirectURL    string         `db:"redirect_url" json:"redirect_url"`
+	Lists          types.JSONText `db:"lists" json:"lists"`
 
 	// Joins is the number of signups that came through the card, with the
 	// new and existing subscriber split.

@@ -497,13 +497,56 @@ func (a *App) CardSubscription(c *echo.Context) error {
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
 	}
 
-	msg := "public.subConfirmed"
 	if hasOptin {
-		msg = "public.subOptinPending"
+		return c.Render(http.StatusOK, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.buttons.subscribe"), "", a.i18n.Ts("public.subOptinPending")))
+	}
+
+	if redirect := cardRedirectURL(card.RedirectURL); redirect != "" {
+		return c.Redirect(http.StatusSeeOther, redirect)
 	}
 
 	return c.Render(http.StatusOK, tplMessage,
-		makeMsgTpl(a.i18n.T("globals.buttons.subscribe"), "", a.i18n.Ts(msg)))
+		makeMsgTpl(a.i18n.T("globals.buttons.subscribe"), "", cardSuccessMessage(card, a.i18n.Ts("public.subConfirmed"))))
+}
+
+// cardSuccessMessage returns the message shown after a successful card
+// signup, falling back to the default confirmation message.
+func cardSuccessMessage(card models.Card, fallback string) string {
+	if msg := strings.TrimSpace(card.SuccessMessage); msg != "" {
+		return msg
+	}
+
+	return fallback
+}
+
+// cardRedirectURL returns the URL to send a card's visitor to after a
+// successful signup. Only http(s) and relative URLs are allowed.
+func cardRedirectURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+
+	if u.IsAbs() {
+		if (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+			return raw
+		}
+
+		return ""
+	}
+
+	// Reject protocol-relative URLs that point at another host.
+	if strings.HasPrefix(raw, "//") {
+		return ""
+	}
+
+	return raw
 }
 
 // cardListUUIDs returns the UUIDs of the lists (labels) pinned to a card.

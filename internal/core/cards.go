@@ -85,7 +85,9 @@ func (c *Core) CreateCard(card models.Card, listIDs []int) (models.Card, error) 
 	}
 
 	var newID int
-	if err := c.q.CreateCard.Get(&newID, uu.String(), name, slug, card.Description, pq.Array(normalizeCardListIDs(listIDs))); err != nil {
+	if err := c.q.CreateCard.Get(&newID, uu.String(), name, slug, card.Description,
+		normalizeCardSuccessMessage(card.SuccessMessage), normalizeCardRedirectURL(card.RedirectURL),
+		pq.Array(normalizeCardListIDs(listIDs))); err != nil {
 		c.log.Printf("error creating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorCreating", "name", "card", "error", pqErrMsg(err)))
@@ -125,7 +127,9 @@ func (c *Core) UpdateCard(id int, card models.Card, listIDs []int) (models.Card,
 		listIDs = cur.ParsedListIDs()
 	}
 
-	if _, err := c.q.UpdateCard.Exec(id, name, slug, card.Description, pq.Array(normalizeCardListIDs(listIDs))); err != nil {
+	if _, err := c.q.UpdateCard.Exec(id, name, slug, card.Description,
+		normalizeCardSuccessMessage(card.SuccessMessage), normalizeCardRedirectURL(card.RedirectURL),
+		pq.Array(normalizeCardListIDs(listIDs))); err != nil {
 		c.log.Printf("error updating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "card", "error", pqErrMsg(err)))
@@ -146,9 +150,11 @@ func (c *Core) DuplicateCard(id int) (models.Card, error) {
 
 	name := fmt.Sprintf("%s (copy)", cur.Name)
 	return c.CreateCard(models.Card{
-		Name:        name,
-		Slug:        models.MakeSlug(name),
-		Description: cur.Description,
+		Name:           name,
+		Slug:           models.MakeSlug(name),
+		Description:    cur.Description,
+		SuccessMessage: cur.SuccessMessage,
+		RedirectURL:    cur.RedirectURL,
 	}, listIDs)
 }
 
@@ -186,6 +192,16 @@ func normalizeCardListIDs(ids []int) []int {
 	}
 
 	return out
+}
+
+// normalizeCardSuccessMessage trims the card's success message.
+func normalizeCardSuccessMessage(msg string) string {
+	return strings.TrimSpace(msg)
+}
+
+// normalizeCardRedirectURL trims the card's redirect URL.
+func normalizeCardRedirectURL(raw string) string {
+	return strings.TrimSpace(raw)
 }
 
 // uniqueCardSlug returns slug if no other card uses it, otherwise it appends
