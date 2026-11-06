@@ -1161,9 +1161,24 @@ td > .empty-state {
         border-radius: var(--radius-medium);
         background: var(--card);
 
-        > .code-editor-mount {
+        > .md-split {
+            display: flex;
             flex: 1;
             min-height: 0;
+        }
+
+        > .md-split > .code-editor-mount {
+            flex: 1 1 50%;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        &.is-preview-hidden > .md-split > .code-editor-mount {
+            flex-basis: 100%;
+        }
+
+        &.is-preview-hidden .md-preview-pane {
+            display: none;
         }
 
         .cm-editor {
@@ -1214,6 +1229,76 @@ td > .empty-state {
 
 .md-toolbar .md-tool[data-cmd="italic"] {
     font-style: italic;
+}
+
+.md-toolbar .md-toolbar-spacer {
+    flex: 1;
+}
+
+.md-toolbar .md-preview-toggle[aria-pressed="true"] {
+    background: var(--accent);
+}
+
+.md-preview-pane {
+    display: flex;
+    flex: 1 1 50%;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-inline-start: 1px solid var(--border);
+    background: var(--card);
+}
+
+.md-preview-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: var(--text-8);
+    font-weight: var(--font-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.md-preview-close {
+    padding: 0 var(--space-2);
+    font-size: var(--text-6);
+    line-height: 1;
+}
+
+.md-preview {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-5) var(--space-6);
+}
+
+.md-preview-body {
+    max-width: 72ch;
+    margin-inline: auto;
+    overflow-wrap: anywhere;
+    font-size: var(--text-7);
+    line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+    .code-editor.is-markdown > .md-split {
+        flex-direction: column;
+    }
+
+    .code-editor.is-markdown > .md-split > .code-editor-mount,
+    .md-preview-pane {
+        flex-basis: 50%;
+    }
+
+    .md-preview-pane {
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--border);
+    }
 }
 
 visual-editor {

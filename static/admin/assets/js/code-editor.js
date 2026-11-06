@@ -13,10 +13,17 @@ import {
 import { defaultHighlightStyle, syntaxHighlighting, bracketMatching } from "@codemirror/language"
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search"
 import { editorExtensions } from "./editor-theme.js"
+import { convert } from "./content.js"
 
 const LANGS = {
   html, css, javascript, markdown
 }
+
+// Milliseconds to wait after the last keystroke before re-rendering the preview.
+const PREVIEW_DEBOUNCE = 150
+
+// localStorage key for the preview pane's open/closed state.
+const PREVIEW_STORAGE_KEY = "listmonk.markdownPreview"
 
 const MARKDOWN_TOOLS = [
   { cmd: "heading", key: "editor.heading", label: "Heading", text: "H" },
@@ -116,7 +123,7 @@ const MARKDOWN_ACTIONS = {
   quote: (view) => prefixLines(view, "> ")
 }
 
-function buildMarkdownToolbar(disabled) {
+function buildMarkdownToolbar(disabled, previewVisible) {
   const toolbar = document.createElement("div")
   toolbar.className = "md-toolbar"
   toolbar.setAttribute("role", "toolbar")
@@ -135,6 +142,19 @@ function buildMarkdownToolbar(disabled) {
     toolbar.append(button)
   })
 
+  const spacer = document.createElement("span")
+  spacer.className = "md-toolbar-spacer"
+
+  const toggle = document.createElement("button")
+  toggle.type = "button"
+  toggle.className = "ghost small md-tool md-preview-toggle"
+  toggle.dataset.action = "toggle-preview"
+  toggle.textContent = translate("globals.buttons.preview", "Preview")
+  toggle.title = toggle.textContent
+  toggle.setAttribute("aria-label", toggle.textContent)
+  toggle.setAttribute("aria-pressed", String(previewVisible))
+  toolbar.append(spacer, toggle)
+
   toolbar.addEventListener("mousedown", (e) => {
     if (e.target.closest("button")) {
       e.preventDefault()
@@ -144,12 +164,69 @@ function buildMarkdownToolbar(disabled) {
   return toolbar
 }
 
+function buildMarkdownPreview() {
+  const pane = document.createElement("div")
+  pane.className = "md-preview-pane"
+
+  const head = document.createElement("div")
+  head.className = "md-preview-head"
+
+  const label = document.createElement("span")
+  label.textContent = translate("globals.buttons.preview", "Preview")
+
+  const close = document.createElement("button")
+  close.type = "button"
+  close.className = "ghost small md-preview-close"
+  close.dataset.action = "close-preview"
+  close.textContent = "×"
+  close.title = translate("globals.buttons.close", "Close")
+  close.setAttribute("aria-label", close.title)
+
+  const scroller = document.createElement("div")
+  scroller.className = "md-preview"
+  scroller.tabIndex = 0
+  scroller.setAttribute("role", "region")
+  scroller.setAttribute("aria-label", label.textContent)
+
+  const body = document.createElement("div")
+  body.className = "md-preview-body"
+  scroller.append(body)
+
+  head.append(label, close)
+  pane.append(head, scroller)
+
+  return {
+    pane, scroller, body, close, toggle: null
+  }
+}
+
+function readPreviewPreference() {
+  try {
+    return window.localStorage.getItem(PREVIEW_STORAGE_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+function writePreviewPreference(visible) {
+  try {
+    window.localStorage.setItem(PREVIEW_STORAGE_KEY, String(visible))
+    return true
+  } catch {
+    return false
+  }
+}
+
 class CodeEditor extends HTMLElement {
   constructor() {
     super()
     this.editor = null
     this.textarea = null
     this.internalUpdate = false
+    this.preview = null
+    this.previewVisible = false
+    this.previewTimer = null
+    this.previewSyncing = false
   }
 
   connectedCallback() {
@@ -166,7 +243,6 @@ class CodeEditor extends HTMLElement {
 
     const mount = document.createElement("div")
     mount.className = "code-editor-mount"
-    this.appendChild(mount)
 
     // Apply styles to the <code-editor> tag.
     this.classList.add("code-editor")
@@ -175,18 +251,25 @@ class CodeEditor extends HTMLElement {
     const isMarkdown = lang === "markdown"
     const langFn = LANGS[lang] || html
     const disabled = this.hasAttribute("disabled")
+    const previewVisible = isMarkdown && readPreviewPreference()
 
     if (isMarkdown) {
       this.classList.add("is-markdown")
-      const toolbar = buildMarkdownToolbar(disabled)
-      this.insertBefore(toolbar, mount)
-      toolbar.addEventListener("click", (e) => {
-        const button = e.target.closest("button[data-cmd]")
-        if (!button || !this.editor) {
-          return
-        }
-        MARKDOWN_ACTIONS[button.dataset.cmd]?.(this.editor)
-      })
+      this.preview = buildMarkdownPreview()
+      this.previewVisible = previewVisible
+      this.classList.toggle("is-preview-hidden", !previewVisible)
+
+      const split = document.createElement("div")
+      split.className = "md-split"
+      split.append(mount, this.preview.pane)
+
+      const toolbar = buildMarkdownToolbar(disabled, previewVisible)
+      this.preview.toggle = toolbar.querySelector("[data-action='toggle-preview']")
+      this.append(toolbar, split)
+      this._bindToolbar(toolbar)
+      this._bindPreview()
+    } else {
+      this.appendChild(mount)
     }
 
     const onUpdate = EditorView.updateListener.of((update) => {
@@ -200,6 +283,10 @@ class CodeEditor extends HTMLElement {
       }
       this.dispatchEvent(new Event("input", { bubbles: true }))
       this.internalUpdate = false
+
+      if (this.previewVisible) {
+        this._schedulePreview()
+      }
     })
 
     this.editor = new EditorView({
@@ -231,16 +318,107 @@ class CodeEditor extends HTMLElement {
       })
     })
 
+    if (isMarkdown) {
+      this._bindScrollSync()
+      this._renderPreview()
+    }
+
     queueMicrotask(() => {
       this.dispatchEvent(new CustomEvent("editor-ready", { bubbles: true }))
     })
   }
 
   disconnectedCallback() {
+    clearTimeout(this.previewTimer)
+    this.previewTimer = null
+
     if (this.editor) {
       this.editor.destroy()
       this.editor = null
     }
+
+    this.preview = null
+  }
+
+  _bindToolbar(toolbar) {
+    toolbar.addEventListener("click", (e) => {
+      const button = e.target.closest("button")
+      if (!button) {
+        return
+      }
+
+      if (button.dataset.action === "toggle-preview") {
+        this._setPreviewVisible(!this.previewVisible)
+        return
+      }
+
+      if (!button.dataset.cmd || !this.editor) {
+        return
+      }
+
+      MARKDOWN_ACTIONS[button.dataset.cmd]?.(this.editor)
+    })
+  }
+
+  _bindPreview() {
+    this.preview.close.addEventListener("click", () => this._setPreviewVisible(false))
+  }
+
+  _bindScrollSync() {
+    this.editor.scrollDOM.addEventListener("scroll", () => {
+      this._syncScroll(this.editor.scrollDOM, this.preview.scroller)
+    }, { passive: true })
+
+    this.preview.scroller.addEventListener("scroll", () => {
+      this._syncScroll(this.preview.scroller, this.editor.scrollDOM)
+    }, { passive: true })
+  }
+
+  _syncScroll(from, to) {
+    if (!this.previewVisible || this.previewSyncing) {
+      return
+    }
+
+    const fromMax = from.scrollHeight - from.clientHeight
+    const toMax = to.scrollHeight - to.clientHeight
+    if (fromMax <= 0 || toMax <= 0) {
+      return
+    }
+
+    this.previewSyncing = true
+    to.scrollTop = (from.scrollTop / fromMax) * toMax
+    requestAnimationFrame(() => {
+      this.previewSyncing = false
+    })
+  }
+
+  _setPreviewVisible(visible) {
+    this.previewVisible = visible
+    this.classList.toggle("is-preview-hidden", !visible)
+    this.preview.toggle?.setAttribute("aria-pressed", String(visible))
+    writePreviewPreference(visible)
+
+    clearTimeout(this.previewTimer)
+    if (!visible) {
+      return
+    }
+
+    this._renderPreview()
+    this._syncScroll(this.editor.scrollDOM, this.preview.scroller)
+  }
+
+  _schedulePreview() {
+    clearTimeout(this.previewTimer)
+    this.previewTimer = setTimeout(() => this._renderPreview(), PREVIEW_DEBOUNCE)
+  }
+
+  _renderPreview() {
+    if (!this.editor || !this.preview) {
+      return
+    }
+
+    const { body } = convert(this.editor.state.doc.toString(), "markdown", "html")
+    this.preview.body.innerHTML = body
   }
 
   get value() {

@@ -4,7 +4,9 @@
 globals.terms.all
 globals.buttons.back
 globals.buttons.cancel
+globals.buttons.close
 globals.buttons.ok
+globals.buttons.preview
 globals.terms.bounce
 globals.terms.list
 globals.terms.user
