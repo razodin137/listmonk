@@ -141,7 +141,8 @@ func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 
 // ExportArchive writes the public archive dataset, one Markdown file per
 // campaign, and a static HTML site to dir. Files whose contents have not
-// changed are left untouched.
+// changed are left untouched, and hand-edited files are kept with the new
+// export written to a numeric variant beside them.
 func (a *App) ExportArchive(dir string) error {
 	if dir == "" {
 		dir = archive.DefaultExportDir
@@ -173,34 +174,39 @@ func (a *App) ExportArchive(dir string) error {
 	}
 
 	var (
-		files              = append(posts, archiveStaticFiles(entries)...)
-		written, unchanged int
+		files                    = append(posts, archiveStaticFiles(entries)...)
+		written, unchanged, kept int
 	)
 
-	wrote, err := writeArchiveFile(filepath.Join(dir, archiveDatasetFile), data)
-	if err != nil {
-		return err
-	}
-	if wrote {
-		written++
-	} else {
-		unchanged++
-	}
-
-	for _, file := range files {
-		wrote, err := writeArchiveFile(filepath.Join(dir, file.Name), []byte(file.Body))
-		if err != nil {
-			return err
-		}
-		if wrote {
+	record := func(res archive.WriteResult) {
+		if res.Written {
 			written++
 		} else {
 			unchanged++
 		}
+
+		if res.Edited != "" {
+			kept++
+			a.log.Printf("archive: kept hand-edited %s, export content is in %s", res.Edited, res.Path)
+		}
+	}
+
+	res, err := writeArchiveFile(filepath.Join(dir, archiveDatasetFile), data)
+	if err != nil {
+		return err
+	}
+	record(res)
+
+	for _, file := range files {
+		res, err := writeArchiveFile(filepath.Join(dir, file.Name), []byte(file.Body))
+		if err != nil {
+			return err
+		}
+		record(res)
 	}
 
 	a.log.Printf("archive: exported %d campaigns to %s", len(entries), dir)
-	a.log.Printf("archive: wrote %d files, left %d unchanged", written, unchanged)
+	a.log.Printf("archive: wrote %d files, left %d unchanged, kept %d hand-edited", written, unchanged, kept)
 
 	return nil
 }
@@ -241,7 +247,7 @@ func archivePostFile(entry campArchiveEntry) (string, error) {
 	return models.RenderArchivePost(post, entry.Body)
 }
 
-// writeArchiveFile writes data only when the destination differs from it.
-func writeArchiveFile(path string, data []byte) (bool, error) {
-	return archive.WriteFileIfChanged(path, data)
+// writeArchiveFile writes an export file without ever replacing a hand edit.
+func writeArchiveFile(path string, data []byte) (archive.WriteResult, error) {
+	return archive.WriteFilePreservingEdits(path, data)
 }
