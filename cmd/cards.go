@@ -203,3 +203,106 @@ func (a *App) DuplicateCard(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, okResp{out})
 }
+
+// cardTpl is the public view of a single signup card.
+type cardTpl struct {
+	publicTpl
+	Card    models.Card
+	Captcha captchaTpl
+}
+
+// CardPage renders a card as a standalone public signup page.
+func (a *App) CardPage(c *echo.Context) error {
+	if !a.cfg.EnablePublicSubPage {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.invalidFeature")))
+	}
+
+	card, err := a.core.GetCard(0, "", c.Param("slug"))
+	if err != nil {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("globals.messages.notFound", "name", "card")))
+	}
+
+	if len(cardListUUIDs(card)) == 0 {
+		return c.Render(http.StatusInternalServerError, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsAvailable")))
+	}
+
+	out := cardTpl{
+		publicTpl: publicTpl{Title: card.Name, Description: card.Description},
+		Card:      card,
+		Captcha:   a.captchaTplData(),
+	}
+
+	return c.Render(http.StatusOK, "card", out)
+}
+
+// CardSubscription handles submissions from a standalone card page. The
+// subscriber is always added to the card's labels, never to lists sent by
+// the client.
+func (a *App) CardSubscription(c *echo.Context) error {
+	if !a.cfg.EnablePublicSubPage {
+		return echo.NewHTTPError(http.StatusNotFound, a.i18n.T("public.invalidFeature"))
+	}
+
+	card, err := a.core.GetCard(0, "", c.Param("slug"))
+	if err != nil {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("globals.messages.notFound", "name", "card")))
+	}
+
+	if c.FormValue("nonce") != "" {
+		return echo.NewHTTPError(http.StatusBadGateway, a.i18n.T("public.invalidFeature"))
+	}
+
+	if err := a.verifyCaptcha(c); err != nil {
+		e, ok := err.(*echo.HTTPError)
+		if !ok {
+			return err
+		}
+
+		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
+	}
+
+	var req subFormReq
+	if err := c.Bind(&req); err != nil {
+		return c.Render(http.StatusBadRequest, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("globals.messages.invalidData")))
+	}
+
+	listUUIDs := cardListUUIDs(card)
+	if len(listUUIDs) == 0 {
+		return c.Render(http.StatusBadRequest, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsSelected")))
+	}
+
+	hasOptin, err := a.subscribeSub(req.Name, req.Email, listUUIDs)
+	if err != nil {
+		e, ok := err.(*echo.HTTPError)
+		if !ok {
+			return err
+		}
+
+		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
+	}
+
+	msg := "public.subConfirmed"
+	if hasOptin {
+		msg = "public.subOptinPending"
+	}
+
+	return c.Render(http.StatusOK, tplMessage,
+		makeMsgTpl(a.i18n.T("globals.buttons.subscribe"), "", a.i18n.Ts(msg)))
+}
+
+// cardListUUIDs returns the UUIDs of the lists (labels) pinned to a card.
+func cardListUUIDs(card models.Card) []string {
+	lists := card.ParsedLists()
+	out := make([]string, 0, len(lists))
+	for _, l := range lists {
+		out = append(out, l.UUID)
+	}
+
+	return out
+}

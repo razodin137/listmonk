@@ -128,12 +128,22 @@ type msgTpl struct {
 type subFormTpl struct {
 	publicTpl
 	Lists   []models.List
-	Captcha struct {
-		Enabled    bool
-		Provider   string
-		Key        string
-		Complexity int
-	}
+	Captcha captchaTpl
+}
+
+// captchaTpl carries the public captcha widget configuration.
+type captchaTpl struct {
+	Enabled    bool
+	Provider   string
+	Key        string
+	Complexity int
+}
+
+// subFormReq is the payload of a public subscription form.
+type subFormReq struct {
+	Name          string   `form:"name" json:"name"`
+	Email         string   `form:"email" json:"email"`
+	FormListUUIDs []string `form:"l" json:"list_uuids"`
 }
 
 var (
@@ -534,19 +544,26 @@ func (a *App) SubscriptionFormPage(c *echo.Context) error {
 	out := subFormTpl{}
 	out.Title = a.i18n.T("globals.buttons.subscribe")
 	out.Lists = lists
-
-	// Captcha configuration for template rendering.
-	if a.cfg.Security.Captcha.Altcha.Enabled {
-		out.Captcha.Enabled = true
-		out.Captcha.Provider = "altcha"
-		out.Captcha.Complexity = a.cfg.Security.Captcha.Altcha.Complexity
-	} else if a.cfg.Security.Captcha.HCaptcha.Enabled {
-		out.Captcha.Enabled = true
-		out.Captcha.Provider = "hcaptcha"
-		out.Captcha.Key = a.cfg.Security.Captcha.HCaptcha.Key
-	}
+	out.Captcha = a.captchaTplData()
 
 	return c.Render(http.StatusOK, "subscription-form", out)
+}
+
+// captchaTplData returns the configured public captcha widget settings.
+func (a *App) captchaTplData() captchaTpl {
+	var out captchaTpl
+
+	if a.cfg.Security.Captcha.Altcha.Enabled {
+		out.Enabled = true
+		out.Provider = "altcha"
+		out.Complexity = a.cfg.Security.Captcha.Altcha.Complexity
+	} else if a.cfg.Security.Captcha.HCaptcha.Enabled {
+		out.Enabled = true
+		out.Provider = "hcaptcha"
+		out.Key = a.cfg.Security.Captcha.HCaptcha.Key
+	}
+
+	return out
 }
 
 // SubscriptionForm handles subscription requests coming from public
@@ -563,34 +580,13 @@ func (a *App) SubscriptionForm(c *echo.Context) error {
 	}
 
 	// Process CAPTCHA.
-	if a.captcha.IsEnabled() {
-		var val string
-
-		// Get the appropriate captcha response field based on provider.
-		switch a.captcha.GetProvider() {
-		case captcha.ProviderHCaptcha:
-			val = c.FormValue("h-captcha-response")
-		case captcha.ProviderAltcha:
-			val = c.FormValue("altcha")
-		default:
-			return c.Render(http.StatusBadRequest, tplMessage,
-				makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.invalidCaptcha")))
-		}
-
-		if val == "" {
-			return c.Render(http.StatusBadRequest, tplMessage,
-				makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.invalidCaptcha")))
-		}
-
-		err, ok := a.captcha.Verify(val)
-		if err != nil {
-			a.log.Printf("captcha request failed: %v", err)
-		}
-
+	if err := a.verifyCaptcha(c); err != nil {
+		e, ok := err.(*echo.HTTPError)
 		if !ok {
-			return c.Render(http.StatusBadRequest, tplMessage,
-				makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.invalidCaptcha")))
+			return err
 		}
+
+		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("globals.terms.error"), "", fmt.Sprintf("%s", e.Message)))
 	}
 
 	hasOptin, err := a.processSubForm(c)
@@ -620,6 +616,40 @@ func (a *App) SubscriptionForm(c *echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, tplMessage, makeMsgTpl(a.i18n.T("globals.buttons.subscribe"), "", a.i18n.Ts(msg)))
+}
+
+// verifyCaptcha checks the captcha response on a public form submission.
+func (a *App) verifyCaptcha(c *echo.Context) error {
+	if !a.captcha.IsEnabled() {
+		return nil
+	}
+
+	var val string
+
+	// Get the appropriate captcha response field based on provider.
+	switch a.captcha.GetProvider() {
+	case captcha.ProviderHCaptcha:
+		val = c.FormValue("h-captcha-response")
+	case captcha.ProviderAltcha:
+		val = c.FormValue("altcha")
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("public.invalidCaptcha"))
+	}
+
+	if val == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("public.invalidCaptcha"))
+	}
+
+	err, ok := a.captcha.Verify(val)
+	if err != nil {
+		a.log.Printf("captcha request failed: %v", err)
+	}
+
+	if !ok {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("public.invalidCaptcha"))
+	}
+
+	return nil
 }
 
 // PublicSubscription handles subscription requests coming from public
@@ -815,12 +845,7 @@ func drawTransparentImage(h, w int) []byte {
 // The bool indicates whether there was subscription to an optin list so that
 // an appropriate message can be shown.
 func (a *App) processSubForm(c *echo.Context) (bool, error) {
-	// Get and validate fields.
-	var req struct {
-		Name          string   `form:"name" json:"name"`
-		Email         string   `form:"email" json:"email"`
-		FormListUUIDs []string `form:"l" json:"list_uuids"`
-	}
+	var req subFormReq
 	if err := c.Bind(&req); err != nil {
 		return false, err
 	}
@@ -829,29 +854,35 @@ func (a *App) processSubForm(c *echo.Context) (bool, error) {
 		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("public.noListsSelected"))
 	}
 
+	return a.subscribeSub(req.Name, req.Email, req.FormListUUIDs)
+}
+
+// subscribeSub adds a subscriber to the given lists, reusing an existing
+// subscriber instead of failing when the e-mail is already known.
+func (a *App) subscribeSub(name, email string, listUUIDs []string) (bool, error) {
 	// Validate fields.
-	if len(req.Email) > 1000 {
+	if len(email) > 1000 {
 		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidEmail"))
 	}
 
-	em, err := a.importer.SanitizeEmail(req.Email)
+	em, err := a.importer.SanitizeEmail(email)
 	if err != nil {
 		return false, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	req.Email = em
+	email = em
 
-	req.Name = strings.TrimSpace(req.Name)
-	if len(req.Name) == 0 {
+	name = strings.TrimSpace(name)
+	if len(name) == 0 {
 		// If there's no name, use the name bit from the e-mail.
-		req.Name = strings.Split(req.Email, "@")[0]
-	} else if len(req.Name) > stdInputMaxLen {
+		name = strings.Split(email, "@")[0]
+	} else if len(name) > stdInputMaxLen {
 		return false, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("globals.messages.invalidName"))
 	}
 
-	listUUIDs := pq.StringArray(req.FormListUUIDs)
+	uuids := pq.StringArray(listUUIDs)
 
 	// Fetch the list types and ensure that they are not private.
-	listTypes, err := a.core.GetListTypes(nil, req.FormListUUIDs)
+	listTypes, err := a.core.GetListTypes(nil, listUUIDs)
 	if err != nil {
 		return false, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("%s", err.(*echo.HTTPError).Message))
 	}
@@ -864,10 +895,10 @@ func (a *App) processSubForm(c *echo.Context) (bool, error) {
 
 	// Insert the subscriber into the DB.
 	_, hasOptin, err := a.core.InsertSubscriber(models.Subscriber{
-		Name:   req.Name,
-		Email:  req.Email,
+		Name:   name,
+		Email:  email,
 		Status: models.SubscriberStatusEnabled,
-	}, nil, listUUIDs, false, true)
+	}, nil, uuids, false, true)
 	if err == nil {
 		return hasOptin, nil
 	}
@@ -878,13 +909,13 @@ func (a *App) processSubForm(c *echo.Context) (bool, error) {
 	// Subscriber already exists. Update subscriptions in the DB.
 	if e, ok := err.(*echo.HTTPError); ok && e.Code == http.StatusConflict {
 		// Get the subscriber from the DB by their email.
-		sub, err := a.core.GetSubscriber(0, "", req.Email)
+		sub, err := a.core.GetSubscriber(0, "", email)
 		if err != nil {
 			return false, err
 		}
 
 		// Update the subscriber's subscriptions in the DB.
-		_, hasOptin, err := a.core.UpdateSubscriberWithLists(sub.ID, sub, nil, listUUIDs, false, false, true, nil, true)
+		_, hasOptin, err := a.core.UpdateSubscriberWithLists(sub.ID, sub, nil, uuids, false, false, true, nil, true)
 		if err == nil {
 			return hasOptin, nil
 		}

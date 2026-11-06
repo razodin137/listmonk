@@ -323,6 +323,8 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 
 		// /public/static/* file server is registered in initHTTPServer().
 		// Public subscriber facing views.
+		g.GET("/signup/:slug", a.CardPage)
+		g.POST("/signup/:slug", a.CardSubscription)
 		g.GET("/subscription/form", a.SubscriptionFormPage)
 		g.POST("/subscription/form", a.SubscriptionForm)
 		g.GET("/subscription/:campUUID/:subUUID", noIndex(a.hasUUID(a.hasSub(a.SubscriptionPage), "campUUID", "subUUID")))
