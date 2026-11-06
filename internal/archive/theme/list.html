@@ -1,0 +1,41 @@
+{{ define "archive-list" }}<!doctype html>
+<html lang="{{ .Lang }}">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{ .Title }}{{ if .SiteTitle }} - {{ .SiteTitle }}{{ end }}</title>
+	{{ if .Description }}<meta name="description" content="{{ .Description }}">{{ end }}
+	<link rel="stylesheet" href="{{ .Stylesheet }}">
+	{{ if .FeedURL }}<link rel="alternate" type="application/rss+xml" title="{{ .Title }}" href="{{ .FeedURL }}">{{ end }}
+</head>
+<body>
+	<main class="archive">
+		<h1>{{ .Title }}</h1>
+
+		{{ if .Entries }}
+			<ul class="archive-list">
+				{{ range .Entries }}
+					<li>
+						<a href="{{ .Href }}">{{ .Title }}</a>
+						{{ if .DateTime }}<time class="date" datetime="{{ .DateTime }}">{{ .Date }}</time>{{ end }}
+						{{ if .Excerpt }}<p class="excerpt">{{ .Excerpt }}</p>{{ end }}
+					</li>
+				{{ end }}
+			</ul>
+		{{ else }}
+			<p class="empty">{{ .Empty }}</p>
+		{{ end }}
+
+		{{ if .Pagination }}
+			<nav class="pagination">{{ .Pagination }}</nav>
+		{{ end }}
+
+		{{ if or .FeedURL .SubscribeURL }}
+			<p class="archive-links">
+				{{ if .FeedURL }}<a class="feed" href="{{ .FeedURL }}">RSS</a>{{ end }}
+				{{ if .SubscribeURL }}<a href="{{ .SubscribeURL }}">{{ .SubscribeLabel }}</a>{{ end }}
+			</p>
+		{{ end }}
+	</main>
+</body>
+</html>{{ end }}

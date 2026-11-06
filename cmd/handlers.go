@@ -349,6 +349,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 			g.GET("/archive.xml", a.GetCampaignArchivesFeed)
 			g.GET("/archive/:id", a.CampaignArchivePage)
 			g.GET("/archive/latest", a.CampaignArchivePageLatest)
+			g.GET("/public/archive.css", a.ArchiveStylesheet)
 		}
 
 		g.GET("/public/custom.css", serveCustomAppearance("public.custom_css"))

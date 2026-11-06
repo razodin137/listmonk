@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"strings"
 
+	"github.com/knadh/listmonk/internal/archive"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
@@ -14,6 +15,8 @@ const (
 	archivePageExt        = ".html"
 	archiveStylesheetFile = "style.css"
 	archiveSiteTitle      = "Mailing list archive"
+	archiveEmptyText      = "No archived messages yet."
+	archiveLang           = "en"
 )
 
 type archiveStaticPage struct {
@@ -23,187 +26,6 @@ type archiveStaticPage struct {
 	DateTime string
 	Body     template.HTML
 }
-
-type archiveStaticIndexEntry struct {
-	Title    string
-	Href     string
-	Date     string
-	DateTime string
-	Excerpt  string
-}
-
-var archiveIndexTemplate = template.Must(template.New("archive-index").Parse(`<!doctype html>
-<html lang="en">
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>{{ .Title }}</title>
-	<link rel="stylesheet" href="style.css">
-</head>
-<body>
-	<main class="archive">
-		<h1>{{ .Title }}</h1>
-		{{ if .Entries }}
-			<ul class="archive-list">
-				{{ range .Entries }}
-					<li>
-						<a href="{{ .Href }}">{{ .Title }}</a>
-						{{ if .DateTime }}<time class="date" datetime="{{ .DateTime }}">{{ .Date }}</time>{{ end }}
-						{{ if .Excerpt }}<p class="excerpt">{{ .Excerpt }}</p>{{ end }}
-					</li>
-				{{ end }}
-			</ul>
-		{{ else }}
-			<p class="empty">No archived messages yet.</p>
-		{{ end }}
-	</main>
-</body>
-</html>
-`))
-
-var archivePageTemplate = template.Must(template.New("archive-page").Parse(`<!doctype html>
-<html lang="en">
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>{{ .Title }}</title>
-	<link rel="stylesheet" href="style.css">
-</head>
-<body>
-	<main class="archive-campaign">
-		<p class="back"><a href="index.html">&larr; {{ .SiteTitle }}</a></p>
-		<h1>{{ .Title }}</h1>
-		{{ if .DateTime }}<p class="date"><time datetime="{{ .DateTime }}">{{ .Date }}</time></p>{{ end }}
-		<div class="body">{{ .Body }}</div>
-	</main>
-</body>
-</html>
-`))
-
-const archiveStylesheet = `:root {
-	color-scheme: light dark;
-}
-* {
-	box-sizing: border-box;
-}
-body {
-	margin: 0;
-	padding: 2rem 1.25rem 4rem;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-	font-size: 16px;
-	line-height: 1.6;
-	color: #222;
-	background: #fff;
-}
-a {
-	color: #1c5d99;
-}
-h1 {
-	margin: 0 0 1.5rem;
-	font-size: 1.75rem;
-	line-height: 1.25;
-}
-.archive,
-.archive-campaign {
-	max-width: 42rem;
-	margin: 0 auto;
-}
-.archive-list {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-.archive-list li {
-	margin: 0 0 1.5rem;
-}
-.archive-list a {
-	font-size: 1.125rem;
-	font-weight: 600;
-	text-decoration: none;
-}
-.archive-list a:hover {
-	text-decoration: underline;
-}
-.archive .date,
-.archive-campaign .date {
-	display: block;
-	margin-top: 0.25rem;
-	color: #666;
-	font-size: 0.875rem;
-}
-.archive .excerpt {
-	margin: 0.25rem 0 0;
-	color: #444;
-	font-size: 0.9375rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.archive-campaign .back {
-	margin: 0 0 2rem;
-	font-size: 0.9375rem;
-}
-.archive-campaign .body {
-	margin-top: 2rem;
-	line-height: 1.7;
-	overflow-wrap: break-word;
-}
-.archive-campaign .body img {
-	max-width: 100%;
-	height: auto;
-}
-.archive-campaign .body pre {
-	overflow-x: auto;
-	padding: 0.75rem;
-	background: #f4f4f4;
-}
-.archive-campaign .body table {
-	width: 100%;
-	border-collapse: collapse;
-}
-.archive-campaign .body td,
-.archive-campaign .body th {
-	padding: 0.4rem;
-	border: 1px solid #ddd;
-}
-.archive-campaign .body blockquote {
-	margin: 0;
-	padding-left: 1rem;
-	border-left: 3px solid #eee;
-	color: #555;
-}
-.empty {
-	color: #666;
-}
-@media (prefers-color-scheme: dark) {
-	body {
-		color: #e6e6e6;
-		background: #111;
-	}
-	a {
-		color: #8ab4f8;
-	}
-	.archive .date,
-	.archive-campaign .date,
-	.empty {
-		color: #aaa;
-	}
-	.archive .excerpt,
-	.archive-campaign .body blockquote {
-		color: #ccc;
-	}
-	.archive-campaign .body pre {
-		background: #222;
-	}
-	.archive-campaign .body td,
-	.archive-campaign .body th {
-		border-color: #444;
-	}
-	.archive-campaign .body blockquote {
-		border-color: #444;
-	}
-}
-`
 
 // archiveStaticFiles renders the list page, one page per entry, and the
 // stylesheet that sits beside them.
@@ -225,7 +47,7 @@ func archiveStaticFiles(entries []campArchiveEntry) []archiveExportFile {
 
 	out = append(out, archiveExportFile{
 		Name: archiveStylesheetFile,
-		Body: archiveStylesheet,
+		Body: archive.Stylesheet(),
 	})
 
 	return out
@@ -260,9 +82,9 @@ func archiveStaticPages(entries []campArchiveEntry) []archiveStaticPage {
 // archiveStaticIndex renders the archive list with links relative to the
 // exported directory.
 func archiveStaticIndex(pages []archiveStaticPage) string {
-	entries := make([]archiveStaticIndexEntry, 0, len(pages))
+	entries := make([]archive.Entry, 0, len(pages))
 	for _, page := range pages {
-		entries = append(entries, archiveStaticIndexEntry{
+		entries = append(entries, archive.Entry{
 			Title:    page.Title,
 			Href:     page.Name,
 			Date:     page.Date,
@@ -272,10 +94,13 @@ func archiveStaticIndex(pages []archiveStaticPage) string {
 	}
 
 	var buf bytes.Buffer
-	if err := archiveIndexTemplate.Execute(&buf, struct {
-		Title   string
-		Entries []archiveStaticIndexEntry
-	}{archiveSiteTitle, entries}); err != nil {
+	if err := archive.RenderList(&buf, archive.ListData{
+		Lang:       archiveLang,
+		Title:      archiveSiteTitle,
+		Stylesheet: archiveStylesheetFile,
+		Entries:    entries,
+		Empty:      archiveEmptyText,
+	}); err != nil {
 		return ""
 	}
 
@@ -285,10 +110,16 @@ func archiveStaticIndex(pages []archiveStaticPage) string {
 // archiveStaticPageHTML renders one campaign as a standalone reading page.
 func archiveStaticPageHTML(page archiveStaticPage) string {
 	var buf bytes.Buffer
-	if err := archivePageTemplate.Execute(&buf, struct {
-		SiteTitle string
-		archiveStaticPage
-	}{archiveSiteTitle, page}); err != nil {
+	if err := archive.RenderPage(&buf, archive.PageData{
+		Lang:       archiveLang,
+		Title:      page.Title,
+		Stylesheet: archiveStylesheetFile,
+		BackHref:   archiveIndexFile,
+		BackLabel:  archiveSiteTitle,
+		Date:       page.Date,
+		DateTime:   page.DateTime,
+		Body:       page.Body,
+	}); err != nil {
 		return ""
 	}
 

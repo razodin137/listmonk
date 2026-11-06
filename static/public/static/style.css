@@ -152,99 +152,11 @@ input[disabled] {
     margin-top: 30px;
   }
 
-.archive {
-  list-style-type: none;
-  margin: 25px 0 0 0;
-  padding: 0;
-}
-  .archive .date {
-    display: block;
-    color: #666;
-    font-size: 0.875em;
-  }
-  .archive .excerpt {
-    margin: 4px 0 0 0;
-    color: #444;
-    font-size: 0.9375em;
-    line-height: 1.4;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .archive li {
-    margin-bottom: 15px;
-  }
-  .feed {
-    margin-right: 15px;
-  }
-
-.archive-campaign {
-  max-width: 42rem;
-  margin: 0 auto;
-}
-  .archive-campaign .back {
-    margin: 0 0 30px 0;
-    font-size: 0.9375em;
-  }
-  .archive-campaign h1 {
-    margin: 0;
-    font-size: 1.75em;
-    line-height: 1.25;
-  }
-  .archive-campaign .date {
-    margin: 10px 0 0 0;
-    color: #666;
-    font-size: 0.875em;
-  }
-  .archive-campaign .body {
-    margin-top: 30px;
-    line-height: 1.7;
-    overflow-wrap: break-word;
-  }
-  .archive-campaign .body img {
-    max-width: 100%;
-    height: auto;
-  }
-  .archive-campaign .body pre {
-    overflow-x: auto;
-    background: #f4f4f4;
-    padding: 10px;
-  }
-  .archive-campaign .body table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .archive-campaign .body td,
-  .archive-campaign .body th {
-    border: 1px solid #ddd;
-    padding: 6px;
-  }
-  .archive-campaign .body blockquote {
-    margin: 0;
-    padding-left: 15px;
-    border-left: 3px solid #eee;
-    color: #555;
-  }
-
 .home-options {
   margin-top: 30px;
 }
   .home-options a {
     margin: 0 7px;
-  }
-
-.pagination {
-  margin-top: 30px;
-  text-align: center;
-}
-  .pg-page {
-    display: inline-block;
-    padding: 0 10px;
-    text-decoration: none;
-  }
-  .pg-page.pg-selected {
-    text-decoration: underline;
-    font-weight: bold;
   }
 
 footer.container {

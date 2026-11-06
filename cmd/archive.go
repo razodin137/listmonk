@@ -13,13 +13,17 @@ import (
 	"strings"
 
 	"github.com/gorilla/feeds"
+	"github.com/knadh/listmonk/internal/archive"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v5"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
-const excerptLength = 160
+const (
+	excerptLength         = 160
+	archiveLiveStylesheet = "/public/archive.css"
+)
 
 var reHTMLTag = regexp.MustCompile(`(?s)<[^>]*>`)
 
@@ -71,6 +75,105 @@ func campaignArchiveSlug(c models.Campaign, subject string, used map[string]stru
 // dataset always emits a JSON array.
 func campaignArchiveTags(c models.Campaign) []string {
 	return append([]string{}, c.Tags...)
+}
+
+// archiveListData builds the shared archive list view model.
+func (a *App) archiveListData(camps []campArchive) archive.ListData {
+	entries := make([]archive.Entry, 0, len(camps))
+	for _, camp := range camps {
+		date := camp.SendAt
+		if !date.Valid {
+			date = camp.CreatedAt
+		}
+
+		entries = append(entries, archive.Entry{
+			Title:    camp.Subject,
+			Href:     camp.URL,
+			Date:     a.archiveDate(date),
+			DateTime: archiveDateTime(date),
+			Excerpt:  camp.Excerpt,
+		})
+	}
+
+	title := a.i18n.T("public.archiveTitle")
+	data := archive.ListData{
+		Lang:        a.cfg.Lang,
+		SiteTitle:   a.cfg.SiteName,
+		Title:       title,
+		Description: title,
+		Stylesheet:  archiveLiveStylesheet,
+		FeedURL:     strings.TrimSuffix(a.urlCfg.RootURL, "/") + "/archive.xml",
+		Entries:     entries,
+		Empty:       a.i18n.T("public.archiveEmpty"),
+	}
+
+	if a.cfg.EnablePublicSubPage {
+		data.SubscribeURL = strings.TrimSuffix(a.urlCfg.RootURL, "/") + "/subscription/form"
+		data.SubscribeLabel = a.i18n.T("globals.buttons.subscribe")
+	}
+
+	return data
+}
+
+// archivePageData builds the shared single-campaign view model.
+func (a *App) archivePageData(title string, date null.Time, body template.HTML) archive.PageData {
+	return archive.PageData{
+		Lang:       a.cfg.Lang,
+		SiteTitle:  a.cfg.SiteName,
+		Title:      title,
+		Stylesheet: archiveLiveStylesheet,
+		BackHref:   a.urlCfg.ArchiveURL,
+		BackLabel:  a.i18n.T("public.archiveTitle"),
+		Date:       a.archiveDate(date),
+		DateTime:   archiveDateTime(date),
+		Body:       body,
+	}
+}
+
+// archiveDate formats a date for display in the archive.
+func (a *App) archiveDate(t null.Time) string {
+	return niceDate(t, a.i18n.T("_.date_short"), a.i18n.FormatDate)
+}
+
+// archiveDateTime formats a date as an ISO date for the datetime attribute.
+func archiveDateTime(t null.Time) string {
+	if !t.Valid {
+		return ""
+	}
+
+	return t.Time.Format("2006-01-02")
+}
+
+// renderArchiveList renders the shared archive list template.
+func (a *App) renderArchiveList(c *echo.Context, data archive.ListData) error {
+	var buf bytes.Buffer
+	if err := archive.RenderList(&buf, data); err != nil {
+		a.log.Printf("error rendering archive list: %v", err)
+		return c.Render(http.StatusInternalServerError, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.errorFetchingCampaign")))
+	}
+
+	return c.HTML(http.StatusOK, buf.String())
+}
+
+// renderArchivePage renders the shared single-campaign template.
+func (a *App) renderArchivePage(c *echo.Context, data archive.PageData) error {
+	var buf bytes.Buffer
+	if err := archive.RenderPage(&buf, data); err != nil {
+		a.log.Printf("error rendering archive page: %v", err)
+		return c.Render(http.StatusInternalServerError, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.errorFetchingCampaign")))
+	}
+
+	return c.HTML(http.StatusOK, buf.String())
+}
+
+// ArchiveStylesheet serves the stylesheet shared by the live archive and the
+// static export.
+func (a *App) ArchiveStylesheet(c *echo.Context) error {
+	c.Response().Header().Set("Cache-Control", "public, max-age=86400")
+
+	return c.Blob(http.StatusOK, "text/css; charset=utf-8", []byte(archive.Stylesheet()))
 }
 
 // campaignExcerpt returns a single-line plain text summary of a campaign body.
@@ -276,14 +379,10 @@ func (a *App) CampaignArchivesPage(c *echo.Context) error {
 	}
 	pg.SetTotal(total)
 
-	title := a.i18n.T("public.archiveTitle")
-	return c.Render(http.StatusOK, "archive", struct {
-		Title       string
-		Description string
-		Campaigns   []campArchive
-		TotalPages  int
-		Pagination  template.HTML
-	}{title, title, out, pg.TotalPages, template.HTML(pg.HTML("", nil))})
+	data := a.archiveListData(out)
+	data.Pagination = template.HTML(pg.HTML("", nil))
+
+	return a.renderArchiveList(c, data)
 }
 
 // CampaignArchivePage renders the public campaign archives page.
@@ -355,17 +454,7 @@ func (a *App) CampaignArchivePage(c *echo.Context) error {
 		date = pubCamp.SendAt
 	}
 
-	return c.Render(http.StatusOK, "archive-campaign", struct {
-		Title      string
-		Date       null.Time
-		Body       template.HTML
-		ArchiveURL string
-	}{
-		Title:      msg.Subject(),
-		Date:       date,
-		Body:       template.HTML(msg.Body()),
-		ArchiveURL: a.urlCfg.ArchiveURL,
-	})
+	return a.renderArchivePage(c, a.archivePageData(msg.Subject(), date, template.HTML(msg.Body())))
 }
 
 // CampaignArchivePageLatest renders the latest public campaign.
