@@ -79,6 +79,10 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.GET(path.Join(uriAdmin, "/lists/:id"), a.adminPage(hasID(a.ViewList)))
 		g.GET(path.Join(uriAdmin, "/lists/:id/edit"), a.adminPage(hasID(a.ViewList)))
 		g.GET(path.Join(uriAdmin, "/lists/forms"), a.adminPage(a.ViewForms))
+		g.GET(path.Join(uriAdmin, "/cards"), a.adminPage(pm(a.ViewCards, auth.PermListGetAll, auth.PermListGet)))
+		g.GET(path.Join(uriAdmin, "/cards/new"), a.adminPage(pm(a.ViewNewCard, auth.PermListManageAll)))
+		g.GET(path.Join(uriAdmin, "/cards/:id"), a.adminPage(pm(hasID(a.ViewCard), auth.PermListGetAll, auth.PermListGet)))
+		g.GET(path.Join(uriAdmin, "/cards/:id/edit"), a.adminPage(pm(hasID(a.ViewCard), auth.PermListGetAll, auth.PermListGet)))
 		g.GET(path.Join(uriAdmin, "/campaigns"), a.adminPage(pm(a.ViewCampaigns, auth.PermCampaignsGetAll, auth.PermCampaignsGet)))
 		g.GET(path.Join(uriAdmin, "/campaigns/media"), a.adminPage(pm(a.ViewMedia, auth.PermMediaGet)))
 		g.GET(path.Join(uriAdmin, "/campaigns/media/fragment"), a.adminPage(pm(a.ViewMediaFragment, auth.PermMediaGet)))
@@ -207,6 +211,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.GET("/api/cards", pm(a.GetCards, auth.PermListGetAll, auth.PermListGet))
 		g.GET("/api/cards/:id", pm(hasID(a.GetCard), auth.PermListGetAll, auth.PermListGet))
 		g.POST("/api/cards", pm(a.CreateCard, auth.PermListManageAll))
+		g.POST("/api/cards/:id/duplicate", pm(hasID(a.DuplicateCard), auth.PermListManageAll))
 		g.PUT("/api/cards/:id", pm(hasID(a.UpdateCard), auth.PermListManageAll))
 		g.DELETE("/api/cards/:id", pm(hasID(a.DeleteCard), auth.PermListManageAll))
 

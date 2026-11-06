@@ -1,0 +1,35 @@
+{{ define "card-form" -}}
+{{- $root := .Root -}}
+{{- $submit := .Submit -}}
+{{- $canSave := .CanSave -}}
+<form method="post" @submit.prevent="{{ $submit }}">
+	<div class="page-content content">
+		<section class="card">
+			<label data-field>
+				{{ $root.L.T "globals.fields.name" }}
+				<input name="name" maxlength="200" autofocus required x-model="form.name" />
+			</label>
+
+			<label data-field>
+				{{ $root.L.T "globals.fields.slug" }}
+				<input name="slug" maxlength="200" x-model="form.slug" placeholder="{{ $root.L.T "cards.slugPlaceholder" }}" />
+				<small data-hint>{{ $root.L.T "cards.slugHelp" }}</small>
+			</label>
+
+			<label data-field>
+				{{ $root.L.T "globals.fields.description" }}
+				<textarea name="description" maxlength="2000" x-model="form.description"></textarea>
+			</label>
+
+			{{ template "list-selector" dict "Root" $root "Model" "form.lists" "ListID" "card-lists" "Label" "cards.labels" "Placeholder" "cards.labelsPlaceholder" "Hint" "cards.labelsHelp" }}
+		</section>
+		<footer class="hstack justify-end mt-6">
+			<div class="hstack gap-3 justify-end">
+				{{- if $canSave }}
+					<button type="submit" data-variant="primary" data-testid="btn-save" data-spinner="small" :disabled="isLoading('cards.save')" :aria-busy="isLoading('cards.save')">{{ $root.L.T "globals.buttons.save" }}</button>
+				{{- end }}
+			</div>
+		</footer>
+	</div>
+</form>
+{{- end }}

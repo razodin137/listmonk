@@ -1,0 +1,45 @@
+{{ define "card-info" -}}
+{{- $d := .Data -}}
+{{- $c := $d.Card -}}
+<div class="vstack gap-6">
+	<div class="card">
+		<div class="row">
+			<div class="col-8">
+				<div class="hstack gap-2">
+					{{ Badge (list (Icon "link-2") $c.Slug) "tag" }}
+					<span class="text-small text-light">{{ NiceDate $c.CreatedAt }}</span>
+				</div>
+				{{- if $c.Description }}
+					<p class="text-small text-light mt-2">{{ $c.Description }}</p>
+				{{- end }}
+				<div class="hstack hstack-wrap gap-1 mt-2">
+					{{- range $c.ParsedLists }}
+						<a href="{{ URI "/admin/lists" }}/{{ .ID }}" class="tag" title="{{ $.L.T "globals.buttons.view" }} {{ .Name }}">#{{ .Name }}</a>
+					{{- else }}
+						<span class="text-light">{{ $.L.T "cards.noLabels" }}</span>
+					{{- end }}
+				</div>
+			</div>
+			<div class="col-4">
+				<div class="hstack gap-2 justify-end">
+					<button type="button" class="small" data-variant="secondary" title="{{ .L.T "globals.messages.clickToCopy" }}" aria-label="{{ .L.T "globals.fields.id" }}" @click="copyToClipboard(form.id)">
+						<strong>{{ .L.T "globals.fields.id" }}</strong> <span x-text="form.id"></span>
+					</button>
+					<button type="button" class="small" data-variant="secondary" title="{{ .L.T "globals.messages.clickToCopy" }}" aria-label="{{ .L.T "globals.fields.uuid" }}" @click="copyToClipboard(form.uuid)">
+						<strong>{{ .L.T "globals.fields.uuid" }}</strong> <span x-text="form.uuid"></span>
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<section class="row">
+		<div class="col-3">
+			<article class="card float stat-card">
+				<h4 class="title">{{ Icon "user-check" }} {{ .L.T "cards.joins" }}</h4>
+				<div class="stat-value">{{ FormatNumber $c.Joins }}</div>
+			</article>
+		</div>
+	</section>
+</div>
+{{- end }}

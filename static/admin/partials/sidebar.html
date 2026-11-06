@@ -15,6 +15,7 @@
 					<li><a href="{{ URI "/admin/lists" }}?status=archived" {{ IsNav $p "lists.archived" }}>{{ .L.T "globals.terms.archived" }}</a></li>
 					<li><a href="{{ URI "/admin/lists/analytics" }}?from={{ (now.AddDate 0 -3 0).Format "2006-01-02" }}" {{ IsNav $p "lists.analytics" }}>{{ .L.T "globals.terms.analytics" }}</a></li>
 					<li><a href="{{ URI "/admin/lists/forms" }}" {{ IsNav $p "lists.forms" }}>{{ .L.T "globals.terms.forms" }}</a></li>
+					<li><a href="{{ URI "/admin/cards" }}" {{ IsNav $p "lists.cards" }}>{{ .L.T "globals.terms.cards" }}</a></li>
 				</ul>
 			</details>
 		</li>

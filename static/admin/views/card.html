@@ -1,0 +1,44 @@
+{{ define "admin-card" -}}
+{{ template "admin-header" . }}
+{{- $d := .Data -}}
+{{- $c := $d.Card -}}
+{{- $crumbTitle := .L.T "cards.newCard" -}}
+{{- if not $d.IsNew }}{{ $crumbTitle = $c.Name }}{{ end -}}
+{{ template "breadcrumbs" dict "Root" . "Current" $crumbTitle "Parents" (list (dict "Label" (.L.T "globals.terms.cards") "URL" (URI "/admin/cards") "CanLink" true)) }}
+
+<script>
+	window._lists = {{ ToJSON $d.AllLists }};
+	window._card = {{ if $d.IsNew }}null{{ else }}{{ ToJSON $c }}{{ end }};
+</script>
+<section class="cards" x-data="cardForm({ isNew: {{ $d.IsNew }}, canSave: {{ $d.Can "lists:manage_all" }} })">
+	<header class="page-header">
+		<div class="hstack gap-3">
+			<div class="avatar avatar-title">
+				{{ if not $d.IsNew }}{{ template "avatar-icon" dict "Kind" "list" "Name" $c.Name "Href" (printf "%s/%d" (URI "/admin/cards") $c.ID) "Title" (printf "%s %s" ($.L.T "globals.buttons.view") $c.Name) }}{{ end }}
+				<h1 class="page-title avatar-label">{{ if $d.IsNew }}{{ .L.T "cards.newCard" }}{{ else }}{{ $c.Name }}{{ end }}</h1>
+			</div>
+		</div>
+	</header>
+
+	{{- if $d.IsNew }}
+		{{ template "card-form" dict "Root" . "Submit" "onSubmitNew" "IsNew" true "CanSave" ($d.Can "lists:manage_all") }}
+	{{- else }}
+		{{- $base := printf "%s/%d" (URI "/admin/cards") $c.ID -}}
+		<div role="tablist" data-variant="primary">
+			<a role="tab" href="{{ $base }}" {{ if eq $d.Tab "card" }}aria-selected="true"{{ end }}>{{ Icon "list" }} {{ .L.T "globals.buttons.view" }}</a>
+			{{- if $d.Can "lists:manage_all" }}
+				<a role="tab" href="{{ $base }}/edit" {{ if eq $d.Tab "edit" }}aria-selected="true"{{ end }}>{{ Icon "edit-2" }} {{ .L.T "globals.buttons.edit" }}</a>
+			{{- end }}
+		</div>
+		{{- if eq $d.Tab "edit" }}
+			{{ template "card-form" dict "Root" . "Submit" "onSubmitUpdate" "CanSave" ($d.Can "lists:manage_all") }}
+		{{- else }}
+			{{ template "card-info" . }}
+		{{- end }}
+	{{- end }}
+</section>
+
+<script type="module" src="{{ URI "/admin/static/js/views/cards.js" }}?v={{ .AssetVersion }}" defer></script>
+
+{{ template "admin-footer" . -}}
+{{ end }}

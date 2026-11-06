@@ -102,6 +102,20 @@ CREATE TABLE card_lists (
 );
 DROP INDEX IF EXISTS idx_card_lists_list_id; CREATE INDEX idx_card_lists_list_id ON card_lists(list_id);
 
+-- Signups that came through a card. The subscriber may later be deleted while
+-- the card's join count is kept, so subscriber_id is nullable.
+CREATE TABLE card_joins (
+    id              BIGSERIAL PRIMARY KEY,
+    card_id         INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    subscriber_id   INTEGER NULL REFERENCES subscribers(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    is_new          BOOLEAN NOT NULL DEFAULT false,
+
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+DROP INDEX IF EXISTS idx_card_joins_card_id; CREATE INDEX idx_card_joins_card_id ON card_joins(card_id);
+DROP INDEX IF EXISTS idx_card_joins_subscriber_id; CREATE INDEX idx_card_joins_subscriber_id ON card_joins(subscriber_id);
+DROP INDEX IF EXISTS idx_card_joins_created_at; CREATE INDEX idx_card_joins_created_at ON card_joins(created_at);
+
 -- templates
 DROP TABLE IF EXISTS templates CASCADE;
 CREATE TABLE templates (

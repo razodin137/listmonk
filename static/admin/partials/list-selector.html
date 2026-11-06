@@ -8,6 +8,10 @@
 	<ot-taginput x-effect="$el.value = {{ $model }}.map((list) => listTagNode(list, true))" @input="{{ $model }} = $el.value.map((tag) => tag.item || tag)" {{ if $disabled }}:disabled="{{ $disabled }}"{{ end -}}>
 		<input id="{{ $listID }}" aria-label="{{ $root.L.T .Placeholder }}" placeholder="{{ $root.L.T .Placeholder }}" x-init="listAutocomplete($el)" />
 	</ot-taginput>
-	<small data-hint>{{ $root.L.T "subscribers.listsHelp" }}</small>
+	{{- if .Hint }}
+		<small data-hint>{{ $root.L.T .Hint }}</small>
+	{{- else }}
+		<small data-hint>{{ $root.L.T "subscribers.listsHelp" }}</small>
+	{{- end }}
 </div>
 {{- end }}

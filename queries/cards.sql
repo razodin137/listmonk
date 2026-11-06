@@ -15,21 +15,9 @@ WITH cards AS (
 )
 SELECT
     c.*,
-    COALESCE((
-        SELECT JSON_AGG(ROW_TO_JSON(l) ORDER BY l.name)
-        FROM (
-            SELECT lists.id, lists.uuid, lists.name, lists.type, lists.optin, lists.status, lists.description
-            FROM lists
-            INNER JOIN card_lists ON (card_lists.list_id = lists.id)
-            WHERE card_lists.card_id = c.id
-        ) l
-    ), '[]') AS lists
-FROM cards c ORDER BY %order%;
-
--- name: get-card
--- Get a single card by id, UUID, or slug along with its lists (labels).
-SELECT
-    c.*,
+    j.joins,
+    j.new_joins,
+    j.existing_joins,
     COALESCE((
         SELECT JSON_AGG(ROW_TO_JSON(l) ORDER BY l.name)
         FROM (
@@ -40,6 +28,41 @@ SELECT
         ) l
     ), '[]') AS lists
 FROM cards c
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(*) AS joins,
+        COUNT(*) FILTER (WHERE is_new) AS new_joins,
+        COUNT(*) FILTER (WHERE NOT is_new) AS existing_joins
+    FROM card_joins
+    WHERE card_id = c.id
+) j ON TRUE
+ORDER BY %order%;
+
+-- name: get-card
+-- Get a single card by id, UUID, or slug along with its lists (labels).
+SELECT
+    c.*,
+    j.joins,
+    j.new_joins,
+    j.existing_joins,
+    COALESCE((
+        SELECT JSON_AGG(ROW_TO_JSON(l) ORDER BY l.name)
+        FROM (
+            SELECT lists.id, lists.uuid, lists.name, lists.type, lists.optin, lists.status, lists.description
+            FROM lists
+            INNER JOIN card_lists ON (card_lists.list_id = lists.id)
+            WHERE card_lists.card_id = c.id
+        ) l
+    ), '[]') AS lists
+FROM cards c
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(*) AS joins,
+        COUNT(*) FILTER (WHERE is_new) AS new_joins,
+        COUNT(*) FILTER (WHERE NOT is_new) AS existing_joins
+    FROM card_joins
+    WHERE card_id = c.id
+) j ON TRUE
 WHERE CASE
     WHEN $1 > 0 THEN c.id = $1
     WHEN $2 != '' THEN c.uuid = $2::UUID

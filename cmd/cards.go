@@ -1,11 +1,32 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v5"
 )
+
+// cardsView is the admin page view for the signup cards list.
+type cardsView struct {
+	adminView
+
+	Cards []models.Card
+	Page  models.PageProps
+}
+
+// cardView is the admin page view for a single signup card.
+type cardView struct {
+	adminView
+
+	Card     models.Card
+	AllLists []models.List
+	IsNew    bool
+	Tab      string
+}
 
 // cardReq wraps a card with the list IDs (labels) sent by the client.
 // Both "list_ids" and "lists" are accepted.
@@ -31,6 +52,77 @@ var cardsQueryDefaults = map[string]string{
 	"query":    "",
 	"order_by": models.FieldCreatedAt,
 	"order":    models.OrderDesc,
+}
+
+// ViewCards renders the HTML view listing signup cards.
+func (a *App) ViewCards(c *echo.Context) error {
+	q := makeQuery(c.Request().URL.Query(), cardsQueryDefaults)
+	pg := a.pg.NewFromURL(q)
+
+	cards, total, err := a.core.QueryCards(q.Get("query"), q.Get("order_by"), q.Get("order"), pg.Offset, pg.Limit)
+	if err != nil {
+		return err
+	}
+
+	data := cardsView{
+		adminView: newAdminView(c, a.i18n.T("globals.terms.cards"), "", "lists.cards"),
+		Cards:     cards,
+		Page:      models.NewPageProps(q, total, pg.Page, pg.PerPage),
+	}
+
+	return c.Render(http.StatusOK, "admin-cards", data)
+}
+
+// ViewNewCard renders the new signup card page.
+func (a *App) ViewNewCard(c *echo.Context) error {
+	lists, err := a.cardLists(c)
+	if err != nil {
+		return err
+	}
+
+	data := cardView{
+		adminView: newAdminView(c, fmt.Sprintf("%s / %s", a.i18n.T("cards.newCard"), a.i18n.T("globals.terms.cards")), "", "lists.cards"),
+		AllLists:  lists,
+		IsNew:     true,
+	}
+
+	return c.Render(http.StatusOK, "admin-card", data)
+}
+
+// ViewCard renders the signup card overview and editor.
+func (a *App) ViewCard(c *echo.Context) error {
+	card, err := a.core.GetCard(getID(c), "", "")
+	if err != nil {
+		return err
+	}
+
+	tab := "card"
+	if strings.HasSuffix(c.Path(), "/edit") {
+		tab = "edit"
+	}
+
+	data := cardView{
+		adminView: newAdminView(c, fmt.Sprintf("%s / %s", card.Name, a.i18n.T("globals.terms.cards")), "", "lists.cards"),
+		Card:      card,
+		Tab:       tab,
+	}
+
+	if tab == "edit" {
+		data.AllLists, err = a.cardLists(c)
+		if err != nil {
+			return err
+		}
+	}
+
+	return c.Render(http.StatusOK, "admin-card", data)
+}
+
+// cardLists returns the public lists that can be pinned to a card.
+func (a *App) cardLists(c *echo.Context) ([]models.List, error) {
+	user := auth.GetUser(c)
+	hasAllPerm, permittedIDs := user.GetPermittedLists(auth.PermTypeGet)
+
+	return a.core.GetLists(models.ListTypePublic, models.ListStatusActive, hasAllPerm, permittedIDs)
 }
 
 // GetCards retrieves signup cards.
@@ -100,4 +192,14 @@ func (a *App) DeleteCard(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, okResp{true})
+}
+
+// DuplicateCard handles copying a signup card and its labels.
+func (a *App) DuplicateCard(c *echo.Context) error {
+	out, err := a.core.DuplicateCard(getID(c))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, okResp{out})
 }

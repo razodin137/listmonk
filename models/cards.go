@@ -33,6 +33,12 @@ type Card struct {
 	Description string         `db:"description" json:"description"`
 	Lists       types.JSONText `db:"lists" json:"lists"`
 
+	// Joins is the number of signups that came through the card, with the
+	// new and existing subscriber split.
+	Joins         int `db:"joins" json:"joins"`
+	NewJoins      int `db:"new_joins" json:"new_joins"`
+	ExistingJoins int `db:"existing_joins" json:"existing_joins"`
+
 	// ListIDs is accepted when creating or updating a card and is not stored
 	// on the card row itself.
 	ListIDs []int `db:"-" json:"list_ids,omitempty"`

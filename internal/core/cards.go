@@ -136,6 +136,27 @@ func (c *Core) UpdateCard(id int, card models.Card, listIDs []int) (models.Card,
 	return c.GetCard(id, "", "")
 }
 
+// DuplicateCard creates a copy of a card with the same labels and a unique
+// name and slug.
+func (c *Core) DuplicateCard(id int) (models.Card, error) {
+	cur, err := c.GetCard(id, "", "")
+	if err != nil {
+		return models.Card{}, err
+	}
+
+	listIDs := make([]int, 0, len(cur.ParsedLists()))
+	for _, l := range cur.ParsedLists() {
+		listIDs = append(listIDs, l.ID)
+	}
+
+	name := fmt.Sprintf("%s (copy)", cur.Name)
+	return c.CreateCard(models.Card{
+		Name:        name,
+		Slug:        models.MakeSlug(name),
+		Description: cur.Description,
+	}, listIDs)
+}
+
 // DeleteCard deletes a card along with its list associations.
 func (c *Core) DeleteCard(id int) error {
 	if _, err := c.q.DeleteCard.Exec(id); err != nil {
