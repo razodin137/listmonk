@@ -132,12 +132,23 @@ func (a *App) GetCampaignArchiveDataset(c *echo.Context) error {
 		return err
 	}
 
+	out, err := a.buildCampaignArchiveEntries(camps)
+	if err != nil {
+		a.log.Printf("error compiling archive dataset entry: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorFetchingCampaign"))
+	}
+
+	return c.JSON(http.StatusOK, out)
+}
+
+// buildCampaignArchiveEntries compiles archived campaigns into dataset entries
+// in the order they were fetched.
+func (a *App) buildCampaignArchiveEntries(camps models.Campaigns) ([]campArchiveEntry, error) {
 	out := make([]campArchiveEntry, 0, len(camps))
 	for _, camp := range camps {
 		msg, err := a.compileArchiveContent(camp)
 		if err != nil {
-			a.log.Printf("error compiling archive dataset entry: %v", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorFetchingCampaign"))
+			return nil, err
 		}
 
 		out = append(out, campArchiveEntry{
@@ -150,7 +161,7 @@ func (a *App) GetCampaignArchiveDataset(c *echo.Context) error {
 		})
 	}
 
-	return c.JSON(http.StatusOK, out)
+	return out, nil
 }
 
 // compileArchiveContent renders a campaign body as a standalone HTML fragment

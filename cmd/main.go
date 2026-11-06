@@ -312,6 +312,14 @@ func main() {
 	// i18n JSON string for admin HTML pages.
 	app.adminI18nJS = app.makeAdminJSI18n()
 
+	// Export the public archive and exit.
+	if dir := ko.String("archive-export"); dir != "" {
+		if err := app.ExportArchive(dir); err != nil {
+			lo.Fatalf("error exporting archive: %v", err)
+		}
+		return
+	}
+
 	// Star the update checker.
 	if ko.Bool("app.check_updates") {
 		go app.checkUpdates(versionString, time.Hour*24)
