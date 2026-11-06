@@ -111,7 +111,7 @@ func (a *App) ViewNewCampaign(c *echo.Context) error {
 	data := campaignView{
 		adminView:       newAdminView(c, a.i18n.T("campaigns.newCampaign")+" / "+a.i18n.T("globals.terms.campaigns"), "", "campaigns.new"),
 		IsNew:           true,
-		Campaign:        models.Campaign{Type: models.CampaignTypeRegular, ContentType: models.CampaignContentTypeRichtext},
+		Campaign:        models.Campaign{Type: models.CampaignTypeRegular, ContentType: models.CampaignContentTypeMarkdown},
 		Templates:       tpls,
 		AllLists:        allLists,
 		SelectedListIDs: selIDs,
@@ -860,13 +860,13 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 		return c, errors.New(a.i18n.T("campaigns.fieldInvalidSubject"))
 	}
 
-	// If no content-type is specified, default to richtext.
+	// If no content-type is specified, default to markdown.
 	if c.ContentType != models.CampaignContentTypeRichtext &&
 		c.ContentType != models.CampaignContentTypeHTML &&
 		c.ContentType != models.CampaignContentTypePlain &&
 		c.ContentType != models.CampaignContentTypeVisual &&
 		c.ContentType != models.CampaignContentTypeMarkdown {
-		c.ContentType = models.CampaignContentTypeRichtext
+		c.ContentType = models.CampaignContentTypeMarkdown
 	}
 
 	if c.ContentType != models.CampaignContentTypeVisual {

@@ -64,7 +64,7 @@ function component(camp, sel) {
       subject: c.subject || '',
       from_email: c.from_email || config.from_email || '',
       messenger: c.messenger || 'email',
-      content_type: c.content_type || 'richtext',
+      content_type: c.content_type || 'markdown',
       tags: Array.isArray(c.tags) ? c.tags : [],
       lists: lists.map((l) => new ListTag(l)),
       template_id: c.template_id || null,
