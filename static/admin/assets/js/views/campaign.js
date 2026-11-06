@@ -54,7 +54,7 @@ function component(camp, sel) {
     _saved: false,
 
     preview: {
-      title: c.name || '', url: '', loading: true, templateID: null, contentType: '', archiveMeta: '', body: '',
+      title: c.name || '', url: '', archiveUrl: '', loading: true, templateID: null, archiveTemplateID: null, contentType: '', archiveMeta: '', body: '',
     },
 
     form: {
@@ -550,33 +550,41 @@ function component(camp, sel) {
     },
 
     // ===============
-    // Preview via the reusable campaign-preview dialog.
+    // Preview the e-mail and its archive page together in one overlay.
     onPreviewContent() {
-      this.preview.title = this.form.name;
-      this.preview.loading = true;
-      this.preview.url = `${urls.api}/campaigns/${this.form.id}/preview`;
-      this.preview.templateID = this.form.template_id || '';
-      this.preview.contentType = this.form.content_type;
-      this.preview.archiveMeta = '';
-      this.preview.body = this.form.body || '';
-      this.$refs.previewDialog.showModal();
-      this.$nextTick(() => this.$refs.previewForm.submit());
+      this._openPreview();
     },
 
     onPreviewArchive() {
+      this._openPreview();
+    },
+
+    _openPreview() {
       this.preview.title = this.form.name;
       this.preview.loading = true;
-      this.preview.url = `${urls.api}/campaigns/${this.form.id}/preview/archive`;
-      this.preview.templateID = this.form.archive_template_id || '';
+      this.preview.url = `${urls.api}/campaigns/${this.form.id}/preview`;
+      this.preview.archiveUrl = `${urls.api}/campaigns/${this.form.id}/preview/archive`;
+      this.preview.templateID = this.form.template_id || '';
+      this.preview.archiveTemplateID = this.form.archive_template_id || '';
       this.preview.contentType = this.form.content_type;
       this.preview.archiveMeta = this.form.archiveMetaStr;
-      this.preview.body = '';
+      this.preview.body = this.form.body || '';
       this.$refs.previewDialog.showModal();
-      this.$nextTick(() => this.$refs.previewForm.submit());
+      this.$nextTick(() => {
+        this._submitPreview(this.preview.url, 'campaign-preview-email');
+        this._submitPreview(this.preview.archiveUrl, 'campaign-preview-archive');
+      });
+    },
+
+    _submitPreview(url, target) {
+      this.$refs.previewForm.action = url;
+      this.$refs.previewForm.target = target;
+      this.$refs.previewForm.submit();
     },
 
     onPreviewClose() {
       this.$refs.previewFrame.removeAttribute('src');
+      this.$refs.previewArchiveFrame.removeAttribute('src');
       this.preview.loading = true;
     },
 

@@ -411,48 +411,9 @@ func (a *App) PreviewCampaign(c *echo.Context) error {
 		return err
 	}
 
-	var (
-		isPost      = c.Request().Method == http.MethodPost
-		contentType = c.FormValue("content_type")
-		tplID, _    = strconv.Atoi(c.FormValue("template_id"))
-	)
-	// For visual content, template ID for previewing is irrelevant.
-	if contentType == models.CampaignContentTypeVisual || tplID < 1 {
-		tplID = 0
-	}
-
-	// Get the campaign from the DB for previewing with the `template_body` field.
-	camp, err := a.core.GetCampaignForPreview(id, tplID)
+	camp, msg, err := a.campaignPreviewMessage(c, id)
 	if err != nil {
 		return err
-	}
-
-	// There's a body in the request to preview instead of the body in the DB.
-	if isPost {
-		camp.ContentType = contentType
-		camp.Body = c.FormValue("body")
-
-		// For visual campaigns, template body from the DB shouldn't be used.
-		if contentType == models.CampaignContentTypeVisual {
-			camp.TemplateBody = ""
-		}
-	}
-
-	// Use a dummy campaign ID to prevent views and clicks from {{ TrackView }}
-	// and {{ TrackLink }} being registered on preview.
-	camp.UUID = dummySubscriber.UUID
-	if err := camp.CompileTemplate(a.manager.TemplateFuncs(&camp, models.CampPreview)); err != nil {
-		a.log.Printf("error compiling template: %v", err)
-		return echo.NewHTTPError(http.StatusBadRequest,
-			a.i18n.Ts("templates.errorCompiling", "error", err.Error()))
-	}
-
-	// Render the message body.
-	msg, err := a.manager.NewCampaignMessage(&camp, dummySubscriber)
-	if err != nil {
-		a.log.Printf("error rendering message: %v", err)
-		return echo.NewHTTPError(http.StatusBadRequest,
-			a.i18n.Ts("templates.errorRendering", "error", err.Error()))
 	}
 
 	// Plaintext headers for plain body.
@@ -460,10 +421,10 @@ func (a *App) PreviewCampaign(c *echo.Context) error {
 		return c.String(http.StatusOK, string(msg.Body()))
 	}
 
-	return renderSandboxedHTML(c, string(msg.Body()))
+	return renderSandboxedHTML(c, injectPreviewScrollScript(string(msg.Body())))
 }
 
-// PreviewCampaignArchive renders the public campaign archives page.
+// PreviewCampaignArchive renders the campaign's public archive reading page.
 func (a *App) PreviewCampaignArchive(c *echo.Context) error {
 	// Get the campaign ID.
 	id := getID(c)
@@ -473,37 +434,19 @@ func (a *App) PreviewCampaignArchive(c *echo.Context) error {
 		return err
 	}
 
-	// Fetch the campaign body from the DB.
-	tplID, _ := strconv.Atoi(c.FormValue("template_id"))
-	camp, err := a.core.GetCampaignForPreview(id, tplID)
+	camp, err := a.campaignPreview(c, id)
 	if err != nil {
 		return err
 	}
 
-	camp.ArchiveMeta = json.RawMessage([]byte(c.FormValue("archive_meta")))
-
-	// The template selected in the form overrides the campaign's saved archive template.
-	if tplID > 0 {
-		camp.ArchiveTemplateBody = camp.TemplateBody
-	}
-
-	// "Compile" the campaign template with appropriate data.
-	res, err := a.compileArchiveCampaigns([]models.Campaign{camp}, models.CampPreview)
+	page, err := a.campaignArchivePreviewPage(camp)
 	if err != nil {
+		a.log.Printf("error rendering archive preview: %v", err)
 		return c.Render(http.StatusInternalServerError, tplMessage,
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	// Render the campaign body.
-	out := res[0].Campaign
-	msg, err := a.manager.NewCampaignMessage(out, res[0].Subscriber)
-	if err != nil {
-		a.log.Printf("error rendering campaign: %v", err)
-		return c.Render(http.StatusInternalServerError, tplMessage,
-			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
-	}
-
-	return renderSandboxedHTML(c, string(msg.Body()))
+	return renderSandboxedHTML(c, injectPreviewScrollScript(page))
 }
 
 // CampaignContent handles campaign content (body) format conversions.

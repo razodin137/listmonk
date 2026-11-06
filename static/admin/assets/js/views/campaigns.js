@@ -10,7 +10,7 @@ function component() {
   return {
     // Preview dialog state (bound in the reusable campaign-preview partial).
     preview: {
-      title: '', url: '', loading: true, templateID: null, contentType: '', archiveMeta: '', body: '',
+      title: '', url: '', archiveUrl: '', loading: true, templateID: null, archiveTemplateID: null, contentType: '', archiveMeta: '', body: '',
     },
 
     // Running-campaign stats polling.
@@ -34,12 +34,14 @@ function component() {
       this.preview.loading = true;
       this.$refs.previewDialog.showModal();
 
-      // Direct GET-preview of the saved campaign body.
+      // Direct GET-preview of the saved campaign body and its archive page.
       this.$refs.previewFrame.src = `${urls.api}/campaigns/${id}/preview`;
+      this.$refs.previewArchiveFrame.src = `${urls.api}/campaigns/${id}/preview/archive`;
     },
 
     onPreviewClose() {
       this.$refs.previewFrame.removeAttribute('src');
+      this.$refs.previewArchiveFrame.removeAttribute('src');
       this.preview.loading = true;
     },
 

@@ -198,6 +198,27 @@ export async function api(name, uri, method, data) {
   });
 }
 
+// Keep the e-mail and archive page preview panes scrolling together.
+function setupPreviewScrollSync() {
+  window.addEventListener('message', (e) => {
+    if (e.data?.type !== 'campaign-preview-scroll') {
+      return;
+    }
+
+    const frames = Array.from(document.querySelectorAll('iframe[name^="campaign-preview-"]'));
+    const source = frames.find((f) => f.contentWindow === e.source);
+    if (!source) {
+      return;
+    }
+
+    for (const frame of frames) {
+      if (frame !== source) {
+        frame.contentWindow?.postMessage({ type: 'campaign-preview-scroll-to', ratio: e.data.ratio }, '*');
+      }
+    }
+  });
+}
+
 // ========
 (() => {
   // Show a toast if there's a reload-toast in sessionStorage.
@@ -219,4 +240,5 @@ export async function api(name, uri, method, data) {
   }
 
   listenErrorEvents();
+  setupPreviewScrollSync();
 })();

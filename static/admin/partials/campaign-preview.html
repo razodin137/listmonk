@@ -5,13 +5,23 @@
 			<h4 class="dialog-title" x-text="preview.title"></h4>
 		</header>
 		<section class="dialog-body preview" :aria-busy="preview.loading">
-			<form method="post" x-ref="previewForm" :action="preview.url" target="campaign-preview-frame">
+			<form method="post" x-ref="previewForm" :action="preview.url" target="campaign-preview-email">
 				<input type="hidden" name="template_id" :value="preview.templateID" />
+				<input type="hidden" name="archive_template_id" :value="preview.archiveTemplateID" />
 				<input type="hidden" name="content_type" :value="preview.contentType" />
 				<input type="hidden" name="archive_meta" :value="preview.archiveMeta" />
 				<input type="hidden" name="body" :value="preview.body" />
 			</form>
-			<iframe id="iframe" name="campaign-preview-frame" x-ref="previewFrame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" title="{{ .L.T "globals.buttons.preview" }}" @load="preview.loading = false"></iframe>
+			<div class="preview-split">
+				<section class="preview-pane">
+					<header class="preview-pane-head">{{ .L.T "globals.fields.email" }}</header>
+					<iframe id="iframe" name="campaign-preview-email" x-ref="previewFrame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" title="{{ .L.T "globals.fields.email" }}" @load="preview.loading = false"></iframe>
+				</section>
+				<section class="preview-pane">
+					<header class="preview-pane-head">{{ .L.T "globals.terms.archive" }}</header>
+					<iframe id="archive-iframe" name="campaign-preview-archive" x-ref="previewArchiveFrame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" title="{{ .L.T "globals.terms.archive" }}" @load="preview.loading = false"></iframe>
+				</section>
+			</div>
 		</section>
 		<footer class="dialog-foot">
 			<button type="button" class="outline" autofocus @click="$refs.previewDialog.close()">{{ .L.T "globals.buttons.close" }}</button>
