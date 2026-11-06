@@ -30,6 +30,35 @@ const (
 	CampaignContentTypeVisual   = "visual"
 )
 
+// MakeArchiveSlug derives a URL-safe archive slug from a subject. Empty
+// subjects become "untitled", and slugs already present in used get a
+// numeric suffix so two subjects never share an address.
+func MakeArchiveSlug(subject string, used map[string]struct{}) string {
+	slug := MakeSlug(subject)
+	if slug == "" {
+		slug = "untitled"
+	}
+
+	return UniqueSlug(slug, used)
+}
+
+// UniqueSlug reserves slug in used, appending -2, -3, and so on when it is
+// already taken.
+func UniqueSlug(slug string, used map[string]struct{}) string {
+	if _, ok := used[slug]; !ok {
+		used[slug] = struct{}{}
+		return slug
+	}
+
+	for i := 2; ; i++ {
+		candidate := fmt.Sprintf("%s-%d", slug, i)
+		if _, ok := used[candidate]; !ok {
+			used[candidate] = struct{}{}
+			return candidate
+		}
+	}
+}
+
 // CampOpt is a campaign manager option type.
 type CampOpt int
 

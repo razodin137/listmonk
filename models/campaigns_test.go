@@ -48,6 +48,28 @@ func TestMarkdownRendersInEmailAndArchive(t *testing.T) {
 	}
 }
 
+func TestMakeArchiveSlug(t *testing.T) {
+	used := make(map[string]struct{})
+
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"Hello, World!", "hello-world"},
+		{"  Go -- Go  ", "go-go"},
+		{"!!!", "untitled"},
+		{"Hello World", "hello-world-2"},
+		{"Hello World", "hello-world-3"},
+		{"", "untitled-2"},
+	}
+
+	for _, tc := range cases {
+		if got := MakeArchiveSlug(tc.in, used); got != tc.want {
+			t.Errorf("MakeArchiveSlug(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestCompileContentTemplateOmitsWrapper(t *testing.T) {
 	c := Campaign{
 		ContentType:         CampaignContentTypeMarkdown,

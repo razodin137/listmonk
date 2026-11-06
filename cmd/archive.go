@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/gorilla/feeds"
@@ -55,14 +56,15 @@ func campaignArchiveDate(c models.Campaign) null.Time {
 	return c.CreatedAt
 }
 
-// campaignArchiveSlug returns the stable archive slug, falling back to the
-// campaign UUID when no custom slug is set.
-func campaignArchiveSlug(c models.Campaign) string {
+// campaignArchiveSlug returns a campaign's stable archive slug. A slug that
+// has already been written wins; otherwise it is derived from the subject.
+func campaignArchiveSlug(c models.Campaign, subject string, used map[string]struct{}) string {
 	if c.ArchiveSlug.Valid && c.ArchiveSlug.String != "" {
+		used[c.ArchiveSlug.String] = struct{}{}
 		return c.ArchiveSlug.String
 	}
 
-	return c.UUID
+	return models.MakeArchiveSlug(subject, used)
 }
 
 // campaignArchiveTags returns the campaign tags as a non-nil slice so the
@@ -154,14 +156,46 @@ func (a *App) buildCampaignArchiveEntries(camps models.Campaigns) ([]campArchive
 		out = append(out, campArchiveEntry{
 			UUID:  camp.UUID,
 			Title: msg.Subject(),
-			Slug:  campaignArchiveSlug(camp),
 			Date:  campaignArchiveDate(camp),
 			Tags:  campaignArchiveTags(camp),
 			Body:  string(msg.Body()),
 		})
 	}
 
+	assignArchiveSlugs(camps, out)
+
 	return out, nil
+}
+
+// assignArchiveSlugs fills in each entry's slug from the campaign's stored
+// slug or subject. Stored slugs are reserved first, and derived slugs are
+// assigned oldest first so a new campaign never renames an older one.
+func assignArchiveSlugs(camps models.Campaigns, entries []campArchiveEntry) {
+	used := make(map[string]struct{}, len(camps))
+	derived := make([]int, 0, len(camps))
+
+	for i, camp := range camps {
+		if camp.ArchiveSlug.Valid && camp.ArchiveSlug.String != "" {
+			entries[i].Slug = camp.ArchiveSlug.String
+			used[entries[i].Slug] = struct{}{}
+			continue
+		}
+
+		derived = append(derived, i)
+	}
+
+	sort.SliceStable(derived, func(i, j int) bool {
+		a, b := camps[derived[i]], camps[derived[j]]
+		if !a.CreatedAt.Time.Equal(b.CreatedAt.Time) {
+			return a.CreatedAt.Time.Before(b.CreatedAt.Time)
+		}
+
+		return a.ID < b.ID
+	})
+
+	for _, i := range derived {
+		entries[i].Slug = campaignArchiveSlug(camps[i], entries[i].Title, used)
+	}
 }
 
 // compileArchiveContent renders a campaign body as a standalone HTML fragment
