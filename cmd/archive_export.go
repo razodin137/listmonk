@@ -8,9 +8,7 @@ import (
 	iofs "io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
-	"unicode"
 
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
@@ -213,7 +211,7 @@ func archiveExportFiles(entries []campArchiveEntry) ([]archiveExportFile, error)
 			return nil, err
 		}
 
-		name := uniqueArchiveFileName(archiveFileName(entry.Slug), used)
+		name := uniqueArchiveFileName(models.ArchiveFileName(entry.Slug), used)
 		out = append(out, archiveExportFile{
 			Name: name + archivePostExt,
 			Body: body,
@@ -237,28 +235,6 @@ func archivePostFile(entry campArchiveEntry) (string, error) {
 	}
 
 	return models.RenderArchivePost(post, entry.Body)
-}
-
-// archiveFileName turns a slug into a single safe file name component.
-func archiveFileName(slug string) string {
-	name := strings.TrimSpace(slug)
-	name = strings.Map(func(r rune) rune {
-		switch {
-		case r == '/' || r == '\\' || r == 0:
-			return '-'
-		case unicode.IsControl(r):
-			return -1
-		}
-
-		return r
-	}, name)
-	name = strings.Trim(name, ". ")
-
-	if name == "" {
-		return "untitled"
-	}
-
-	return name
 }
 
 // uniqueArchiveFileName returns name, or the first free name-N when it is

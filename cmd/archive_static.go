@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/knadh/listmonk/internal/archive"
+	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
@@ -69,7 +70,7 @@ func archiveStaticPages(entries []campArchiveEntry) []archiveStaticPage {
 	)
 
 	for _, entry := range entries {
-		base := uniqueArchiveFileName(archiveFileName(entry.Slug), used)
+		base := uniqueArchiveFileName(models.ArchiveFileName(entry.Slug), used)
 		date, dateTime := archiveStaticDate(entry.Date)
 
 		out = append(out, archiveStaticPage{

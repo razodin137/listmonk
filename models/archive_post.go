@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -66,6 +67,28 @@ func RenderArchivePost(post ArchivePost, body string) (string, error) {
 	b.WriteString(body)
 
 	return b.String(), nil
+}
+
+// ArchiveFileName turns a post slug into a single safe file name component.
+func ArchiveFileName(slug string) string {
+	name := strings.TrimSpace(slug)
+	name = strings.Map(func(r rune) rune {
+		switch {
+		case r == '/' || r == '\\' || r == 0:
+			return '-'
+		case unicode.IsControl(r):
+			return -1
+		}
+
+		return r
+	}, name)
+	name = strings.Trim(name, ". ")
+
+	if name == "" {
+		return "untitled"
+	}
+
+	return name
 }
 
 // ArchiveDescription returns the plain text of a body's first paragraph.

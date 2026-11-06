@@ -69,6 +69,28 @@ func TestRenderArchivePostKeepsEmptyTagsAndMissingDateHugoReady(t *testing.T) {
 	}
 }
 
+func TestArchiveFileNameUsesSlugAndFallsBackToUntitled(t *testing.T) {
+	cases := map[string]struct {
+		slug string
+		want string
+	}{
+		"plain slug":         {slug: "hello-world", want: "hello-world"},
+		"surrounding spaces": {slug: "  hello-world  ", want: "hello-world"},
+		"path separators":    {slug: "a/b\\c", want: "a-b-c"},
+		"control characters": {slug: "hello\x00world\n", want: "hello-world"},
+		"dots and spaces":    {slug: ".. ", want: "untitled"},
+		"empty":              {slug: "", want: "untitled"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := ArchiveFileName(tc.slug); got != tc.want {
+				t.Fatalf("ArchiveFileName(%q) = %q, want %q", tc.slug, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestArchiveDescriptionUsesFirstParagraph(t *testing.T) {
 	cases := map[string]struct {
 		body string
