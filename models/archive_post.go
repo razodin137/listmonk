@@ -36,8 +36,9 @@ var (
 )
 
 // RenderArchivePost writes a campaign as a Markdown file with YAML front
-// matter followed by the body unchanged.
-func RenderArchivePost(post ArchivePost, body string) (string, error) {
+// matter followed by htmlBody byte for byte. The body is already rendered
+// HTML, so it is never escaped or parsed as Markdown again.
+func RenderArchivePost(post ArchivePost, htmlBody string) (string, error) {
 	tags := post.Tags
 	if tags == nil {
 		tags = []string{}
@@ -64,7 +65,7 @@ func RenderArchivePost(post ArchivePost, body string) (string, error) {
 	b.WriteString("---\n")
 	b.Write(meta)
 	b.WriteString("---\n\n")
-	b.WriteString(body)
+	b.WriteString(htmlBody)
 
 	return b.String(), nil
 }

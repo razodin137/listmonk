@@ -69,6 +69,52 @@ func TestRenderArchivePostKeepsEmptyTagsAndMissingDateHugoReady(t *testing.T) {
 	}
 }
 
+func TestRenderArchivePostKeepsHTMLBodyUnchanged(t *testing.T) {
+	const htmlBody = `<div class="email">
+  <h1>Hello &amp; welcome</h1>
+  <p>Use *asterisks* and # hashes literally, not as Markdown.</p>
+  <a href="/unsubscribe?u=1&amp;c=2">Unsubscribe</a>
+  <img src="https://example.com/banner.png" alt="A &amp; B">
+</div>
+`
+
+	out, err := RenderArchivePost(ArchivePost{
+		Title: "HTML body",
+		Slug:  "html-body",
+	}, htmlBody)
+	if err != nil {
+		t.Fatalf("RenderArchivePost() error: %v", err)
+	}
+
+	_, rest, ok, err := ParseFrontMatter(out)
+	if err != nil {
+		t.Fatalf("ParseFrontMatter() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("rendered post has no front matter")
+	}
+	if rest != "\n"+htmlBody {
+		t.Fatalf("body = %q, want %q", rest, "\n"+htmlBody)
+	}
+
+	for _, want := range []string{
+		`<h1>Hello &amp; welcome</h1>`,
+		`<a href="/unsubscribe?u=1&amp;c=2">Unsubscribe</a>`,
+		`<img src="https://example.com/banner.png" alt="A &amp; B">`,
+		"Use *asterisks* and # hashes literally, not as Markdown.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("HTML body was altered, missing %q in %q", want, out)
+		}
+	}
+
+	for _, escaped := range []string{"&lt;div", "&lt;h1", "&lt;a ", "&lt;img", "<em>asterisks</em>"} {
+		if strings.Contains(out, escaped) {
+			t.Fatalf("HTML body was escaped or rendered as Markdown (%s): %q", escaped, out)
+		}
+	}
+}
+
 func TestArchiveFileNameUsesSlugAndFallsBackToUntitled(t *testing.T) {
 	cases := map[string]struct {
 		slug string
