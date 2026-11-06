@@ -35,3 +35,18 @@ As an example:
 
 ![Archive campaign](images/archived-campaign-metadata.png)
 
+## Exported files
+
+Besides the live archive, every published post is written to disk as a
+Markdown file with YAML front matter, ready for a Hugo-style site.
+
+Files go to `content/posts` by default. Set `app.archive_export_dir` in
+`config.toml` to change the directory. A relative path is resolved against the
+directory containing the config file, and the directory is created if it does
+not exist.
+
+```toml
+[app]
+archive_export_dir = "content/posts"
+```
+

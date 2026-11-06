@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/knadh/listmonk/internal/archive"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
 const (
-	archiveDatasetFile      = "archive.json"
-	archivePostExt          = ".md"
-	defaultArchiveExportDir = "content/posts"
+	archiveDatasetFile = "archive.json"
+	archivePostExt     = ".md"
 )
 
 // archiveExportFile is one campaign body destined for the export directory.
@@ -40,7 +40,7 @@ func (a *App) archiveFinishedCampaign(c *models.Campaign) error {
 		return err
 	}
 
-	if err := a.ExportArchive(defaultArchiveExportDir); err != nil {
+	if err := a.ExportArchive(a.cfg.ArchiveExportDir); err != nil {
 		return fmt.Errorf("exporting archive: %w", err)
 	}
 
@@ -147,8 +147,12 @@ func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 // campaign, and a static HTML site to dir. Files whose contents have not
 // changed are left untouched.
 func (a *App) ExportArchive(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("creating archive directory: %w", err)
+	if dir == "" {
+		dir = archive.DefaultExportDir
+	}
+
+	if err := archive.EnsureExportDir(dir); err != nil {
+		return err
 	}
 
 	camps, _, err := a.core.GetArchivedCampaigns(0, 0)

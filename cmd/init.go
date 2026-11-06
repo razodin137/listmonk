@@ -38,6 +38,7 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/v2"
+	"github.com/knadh/listmonk/internal/archive"
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/bounce"
 	"github.com/knadh/listmonk/internal/bounce/mailbox"
@@ -91,6 +92,7 @@ type Config struct {
 	EnablePublicSubPage           bool     `koanf:"enable_public_subscription_page"`
 	EnablePublicArchive           bool     `koanf:"enable_public_archive"`
 	EnablePublicArchiveRSSContent bool     `koanf:"enable_public_archive_rss_content"`
+	ArchiveExportDir              string   `koanf:"archive_export_dir"`
 	ShowOptinPage                 bool     `koanf:"show_optin_page"`
 	Lang                          string   `koanf:"lang"`
 	DBBatchSize                   int      `koanf:"batch_size"`
@@ -198,6 +200,18 @@ func initFlags(ko *koanf.Koanf) {
 	if err := ko.Load(posflag.Provider(f, ".", ko), nil); err != nil {
 		lo.Fatalf("error loading config: %v", err)
 	}
+}
+
+// configFileDir returns the directory of the first config file so that
+// relative paths in the config can be resolved against it.
+func configFileDir(files []string) string {
+	for _, f := range files {
+		if strings.TrimSpace(f) != "" {
+			return filepath.Dir(f)
+		}
+	}
+
+	return "."
 }
 
 // initConfigFiles loads the given config files into the koanf instance.
@@ -551,6 +565,10 @@ func initConstConfig(ko *koanf.Koanf) *Config {
 
 	c.FromEmail = getDefaultFromEmail(ko)
 	c.Lang = ko.String("app.lang")
+	c.ArchiveExportDir = archive.ResolveExportDir(c.ArchiveExportDir, configFileDir(ko.Strings("config")))
+	if err := archive.EnsureExportDir(c.ArchiveExportDir); err != nil {
+		lo.Printf("%v", err)
+	}
 	c.Privacy.Exportable = koanfmaps.StringSliceToLookupMap(ko.Strings("privacy.exportable"))
 	c.MediaUpload.Provider = ko.String("upload.provider")
 	c.MediaUpload.Extensions = ko.Strings("upload.extensions")

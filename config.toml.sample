@@ -5,6 +5,11 @@
 # port, use port 80 (this will require running with elevated permissions).
 address = "localhost:9000"
 
+# Directory where the public archive is exported. A relative path is resolved
+# against the directory containing this config file. The directory is created
+# if it does not exist.
+archive_export_dir = "content/posts"
+
 # Database.
 [db]
 host = "localhost"
