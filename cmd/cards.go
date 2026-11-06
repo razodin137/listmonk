@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"html/template"
 	"mime"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/knadh/listmonk/internal/auth"
@@ -108,6 +110,104 @@ func (r cardReq) ids() []int {
 	}
 
 	return r.Lists
+}
+
+// cardPreviewReq is the unsaved card payload posted by the admin preview
+// dialog.
+type cardPreviewReq struct {
+	Name        string `json:"name" form:"name"`
+	Description string `json:"description" form:"description"`
+	Captcha     string `json:"captcha" form:"captcha"`
+	ListIDs     []int  `json:"list_ids" form:"list_ids"`
+	Lists       []int  `json:"lists" form:"lists"`
+}
+
+// ids returns the list IDs sent in the request.
+func (r cardPreviewReq) ids() []int {
+	if r.ListIDs != nil {
+		return r.ListIDs
+	}
+
+	return r.Lists
+}
+
+// PreviewCard renders a card's public signup form with the unsaved values
+// from the admin editor.
+func (a *App) PreviewCard(c *echo.Context) error {
+	var req cardPreviewReq
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+
+	lists, err := a.previewCardLists(c, req.ids())
+	if err != nil {
+		return err
+	}
+
+	raw, err := json.Marshal(lists)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	card := models.Card{
+		Name:        strings.TrimSpace(req.Name),
+		Description: req.Description,
+		Captcha:     req.Captcha,
+		Lists:       raw,
+	}
+
+	out := cardTpl{
+		publicTpl: publicTpl{Title: card.Name, Description: card.Description},
+		Card:      card,
+		Captcha:   a.cardCaptchaTpl(card),
+		Action:    "#",
+		Labels:    card.ParsedLists(),
+	}
+
+	return c.Render(http.StatusOK, "card-embed", out)
+}
+
+// previewCardLists resolves the labels picked in the editor into their public
+// details, dropping IDs the user is not permitted to see.
+func (a *App) previewCardLists(c *echo.Context, ids []int) ([]models.CardList, error) {
+	wanted := make(map[int]bool, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			wanted[id] = true
+		}
+	}
+
+	if len(wanted) == 0 {
+		return []models.CardList{}, nil
+	}
+
+	lists, err := a.cardLists(c)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]models.CardList, 0, len(wanted))
+	for _, l := range lists {
+		if !wanted[l.ID] {
+			continue
+		}
+
+		out = append(out, models.CardList{
+			ID:          l.ID,
+			UUID:        l.UUID,
+			Name:        l.Name,
+			Type:        l.Type,
+			Optin:       l.Optin,
+			Status:      l.Status,
+			Description: l.Description,
+		})
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+
+	return out, nil
 }
 
 // cardsQueryDefaults is the allow list of filter query params.

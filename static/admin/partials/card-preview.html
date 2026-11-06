@@ -1,0 +1,23 @@
+{{ define "card-preview" -}}
+<dialog class="preview-modal" x-ref="previewDialog" data-testid="card-preview-dialog" @close="onPreviewClose">
+	<div class="dialog-card">
+		<header class="dialog-head hstack justify-between">
+			<h4 class="dialog-title">{{ .L.T "globals.buttons.preview" }}</h4>
+		</header>
+		<section class="dialog-body preview" :aria-busy="preview.loading">
+			<form method="post" x-ref="previewForm" :action="preview.url" target="card-preview-frame">
+				<input type="hidden" name="name" :value="form.name" />
+				<input type="hidden" name="description" :value="form.description" />
+				<input type="hidden" name="captcha" :value="form.captcha" />
+				<template x-for="list in form.lists" :key="list.id">
+					<input type="hidden" name="list_ids" :value="list.id" />
+				</template>
+			</form>
+			<iframe id="iframe" name="card-preview-frame" x-ref="previewFrame" data-testid="card-preview-frame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" title="{{ .L.T "globals.buttons.preview" }}" @load="preview.loading = false"></iframe>
+		</section>
+		<footer class="dialog-foot align-right">
+			<button type="button" class="outline" autofocus @click="$refs.previewDialog.close()">{{ .L.T "globals.buttons.close" }}</button>
+		</footer>
+	</div>
+</dialog>
+{{- end }}

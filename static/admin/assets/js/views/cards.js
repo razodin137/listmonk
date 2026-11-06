@@ -52,8 +52,33 @@ function cardForm({ isNew = true } = {}) {
   return {
     form: isNew ? makeForm() : fromCard(card),
 
+    preview: {
+      url: `${urls.api}/cards/preview`,
+      loading: true
+    },
+
+    // ===============
+    // Alpine lifecycle.
+    init() {
+      this.$watch("form.name", () => this._previewChanged())
+      this.$watch("form.description", () => this._previewChanged())
+      this.$watch("form.captcha", () => this._previewChanged())
+      this.$watch("form.lists", () => this._previewChanged())
+    },
+
     // ===============
     // Event handlers.
+    onPreview() {
+      this.$refs.previewDialog.showModal()
+      this._submitPreview()
+    },
+
+    onPreviewClose() {
+      clearTimeout(this._previewTimer)
+      this.$refs.previewFrame.removeAttribute("src")
+      this.preview.loading = true
+    },
+
     async onSubmitNew() {
       const data = await api("cards.save", "/cards", "POST", this._payload())
       u.redirect(`${urls.admin}/cards/${data.id}`, { message: i18n.ts("globals.messages.created", { name: data.name }) })
@@ -67,6 +92,21 @@ function cardForm({ isNew = true } = {}) {
 
     // ===============
     // Private functions.
+    _previewChanged() {
+      const dlg = this.$refs.previewDialog
+      if (!dlg || !dlg.open) {
+        return
+      }
+
+      clearTimeout(this._previewTimer)
+      this._previewTimer = setTimeout(() => this._submitPreview(), 250)
+    },
+
+    _submitPreview() {
+      this.preview.loading = true
+      this.$nextTick(() => this.$refs.previewForm.submit())
+    },
+
     _payload() {
       return {
         name: this.form.name,

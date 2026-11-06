@@ -47,6 +47,7 @@
 		</section>
 		<footer class="hstack justify-end mt-6">
 			<div class="hstack gap-3 justify-end">
+				<button type="button" class="outline" data-testid="btn-preview" @click="onPreview">{{ Icon "eye" }} {{ $root.L.T "globals.buttons.preview" }}</button>
 				{{- if $canSave }}
 					<button type="submit" data-variant="primary" data-testid="btn-save" data-spinner="small" :disabled="isLoading('cards.save')" :aria-busy="isLoading('cards.save')">{{ $root.L.T "globals.buttons.save" }}</button>
 				{{- end }}
@@ -54,4 +55,5 @@
 		</footer>
 	</div>
 </form>
+{{ template "card-preview" dict "Root" $root }}
 {{- end }}

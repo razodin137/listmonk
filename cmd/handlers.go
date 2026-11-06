@@ -210,6 +210,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/lists/:id", hasID(a.DeleteList))
 
 		g.GET("/api/cards", pm(a.GetCards, auth.PermListGetAll, auth.PermListGet))
+		g.POST("/api/cards/preview", pm(a.PreviewCard, auth.PermListGetAll, auth.PermListGet))
 		g.GET("/api/cards/:id", pm(hasID(a.GetCard), auth.PermListGetAll, auth.PermListGet))
 		g.POST("/api/cards", pm(a.CreateCard, auth.PermListManageAll))
 		g.POST("/api/cards/:id/duplicate", pm(hasID(a.DuplicateCard), auth.PermListManageAll))
