@@ -37,20 +37,8 @@ func (a *App) archiveFinishedCampaign(c *models.Campaign) error {
 	archiveFinishedMut.Lock()
 	defer archiveFinishedMut.Unlock()
 
-	if !c.Archive {
-		meta := models.JSON{}
-		if len(c.ArchiveMeta) > 0 {
-			if err := json.Unmarshal(c.ArchiveMeta, &meta); err != nil {
-				return fmt.Errorf("decoding campaign archive meta: %w", err)
-			}
-			if meta == nil {
-				meta = models.JSON{}
-			}
-		}
-
-		if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, c.ArchiveSlug.String); err != nil {
-			return fmt.Errorf("publishing campaign to archive: %w", err)
-		}
+	if _, err := a.publishCampaignToArchive(c); err != nil {
+		return err
 	}
 
 	if err := a.ExportArchive(defaultArchiveExportDir); err != nil {
@@ -58,6 +46,65 @@ func (a *App) archiveFinishedCampaign(c *models.Campaign) error {
 	}
 
 	return nil
+}
+
+// BackfillArchive publishes every finished campaign that is not already in the
+// archive and then writes the dataset and files, leaving up-to-date files
+// untouched.
+func (a *App) BackfillArchive(dir string) error {
+	camps, _, err := a.core.QueryCampaigns("", []string{models.CampaignStatusFinished}, nil, "",
+		models.FieldCreatedAt, models.OrderAsc, true, nil, 0, 0)
+	if err != nil {
+		return fmt.Errorf("fetching finished campaigns: %w", err)
+	}
+
+	var published, skipped int
+	for i := range camps {
+		wrote, err := a.publishCampaignToArchive(&camps[i])
+		if err != nil {
+			return fmt.Errorf("archiving campaign %s: %w", camps[i].UUID, err)
+		}
+
+		if wrote {
+			published++
+		} else {
+			skipped++
+		}
+	}
+
+	a.log.Printf("archive: backfilled %d campaigns, %d already archived", published, skipped)
+
+	if err := a.ExportArchive(dir); err != nil {
+		return fmt.Errorf("exporting archive: %w", err)
+	}
+
+	return nil
+}
+
+// publishCampaignToArchive marks a campaign as archived using its stored
+// archive metadata. It reports whether the campaign was newly published.
+func (a *App) publishCampaignToArchive(c *models.Campaign) (bool, error) {
+	if c.Archive {
+		return false, nil
+	}
+
+	meta := models.JSON{}
+	if len(c.ArchiveMeta) > 0 {
+		if err := json.Unmarshal(c.ArchiveMeta, &meta); err != nil {
+			return false, fmt.Errorf("decoding campaign archive meta: %w", err)
+		}
+		if meta == nil {
+			meta = models.JSON{}
+		}
+	}
+
+	if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, c.ArchiveSlug.String); err != nil {
+		return false, fmt.Errorf("publishing campaign to archive: %w", err)
+	}
+
+	c.Archive = true
+
+	return true, nil
 }
 
 // ExportArchive writes the public archive dataset, one Markdown file per

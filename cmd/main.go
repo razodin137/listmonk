@@ -308,9 +308,17 @@ func main() {
 	// i18n JSON string for admin HTML pages.
 	app.adminI18nJS = app.makeAdminJSI18n()
 
-	// Export the public archive and exit.
+	// Publish every finished campaign to the archive, export it and exit.
+	if dir := ko.String("archive-backfill"); dir != "" {
+		if err := app.BackfillArchive(dir); err != nil {
+			lo.Fatalf("error backfilling archive: %v", err)
+		}
+		return
+	}
+
+	// Publish finished campaigns and export the public archive, then exit.
 	if dir := ko.String("archive-export"); dir != "" {
-		if err := app.ExportArchive(dir); err != nil {
+		if err := app.BackfillArchive(dir); err != nil {
 			lo.Fatalf("error exporting archive: %v", err)
 		}
 		return
