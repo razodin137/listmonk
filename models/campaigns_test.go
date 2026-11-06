@@ -70,6 +70,99 @@ func TestMakeArchiveSlug(t *testing.T) {
 	}
 }
 
+func TestMakeArchiveSlugSubjectEdgeCases(t *testing.T) {
+	longTitle := strings.Repeat("A long subject ", 12)
+	longSlug := strings.TrimSuffix(strings.Repeat("a-long-subject-", 12), "-")
+
+	cases := []struct {
+		name  string
+		title string
+		used  []string
+		want  string
+	}{
+		{
+			name:  "punctuation",
+			title: "Hello, World! -- 2026",
+			want:  "hello-world-2026",
+		},
+		{
+			name:  "emoji between words",
+			title: "Launch 🚀 day",
+			want:  "launch-day",
+		},
+		{
+			name:  "emoji only",
+			title: "🚀🔥",
+			want:  "untitled",
+		},
+		{
+			name:  "quotes",
+			title: `"Quoted" and 'single'`,
+			want:  "quoted-and-single",
+		},
+		{
+			name:  "curly quotes",
+			title: "“Curly” and ‘single’",
+			want:  "curly-and-single",
+		},
+		{
+			name:  "apostrophe",
+			title: "It's here",
+			want:  "it-s-here",
+		},
+		{
+			name:  "collision with taken slug",
+			title: "Hello, World!",
+			used:  []string{"hello-world"},
+			want:  "hello-world-2",
+		},
+		{
+			name:  "empty subject",
+			title: "",
+			want:  "untitled",
+		},
+		{
+			name:  "only punctuation",
+			title: "!!! ??? ...",
+			want:  "untitled",
+		},
+		{
+			name:  "long subject",
+			title: longTitle,
+			want:  longSlug,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			used := make(map[string]struct{}, len(tc.used))
+			for _, slug := range tc.used {
+				used[slug] = struct{}{}
+			}
+
+			if got := MakeArchiveSlug(tc.title, used); got != tc.want {
+				t.Fatalf("MakeArchiveSlug(%q) = %q, want %q", tc.title, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMakeArchiveSlugSuffixesEveryCollision(t *testing.T) {
+	used := make(map[string]struct{})
+
+	got := make([]string, 4)
+	for i := range got {
+		got[i] = MakeArchiveSlug("Hot deal", used)
+	}
+
+	want := []string{"hot-deal", "hot-deal-2", "hot-deal-3", "hot-deal-4"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("collision %d = %q, want %q (all: %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
 func TestMakeArchiveTitle(t *testing.T) {
 	cases := map[string]struct {
 		subject string
