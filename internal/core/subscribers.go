@@ -436,7 +436,11 @@ func subscribeSubscriber(store subscriberStore, sub models.Subscriber, listUUIDs
 		return false, err
 	}
 
-	_, hasOptin, err = store.UpdateSubscriberWithLists(existing.ID, existing, nil, uuids, false, false, true, nil, true)
+	// A member who is already enabled and confirmed on every one of these
+	// lists is subscribed right away, with no opt-in mail or confirmation.
+	preconfirm := existing.IsConfirmedOn(listUUIDs)
+
+	_, hasOptin, err = store.UpdateSubscriberWithLists(existing.ID, existing, nil, uuids, preconfirm, false, true, nil, true)
 	if err != nil {
 		return false, err
 	}

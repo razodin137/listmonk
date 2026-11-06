@@ -49,6 +49,7 @@ type subLists struct {
 // subscription, parsed from the raw Lists JSON for use in HTML views.
 type SubscriberListView struct {
 	ID                    int       `json:"id"`
+	UUID                  string    `json:"uuid"`
 	Name                  string    `json:"name"`
 	Type                  string    `json:"type"`
 	Optin                 string    `json:"optin"`
@@ -71,6 +72,27 @@ func (s Subscriber) ParsedLists() []SubscriberListView {
 	}
 
 	return out
+}
+
+// IsConfirmedOn reports whether the subscriber is enabled and holds a
+// confirmed subscription to every one of the given lists.
+func (s Subscriber) IsConfirmedOn(listUUIDs []string) bool {
+	if s.Status != SubscriberStatusEnabled || len(listUUIDs) == 0 {
+		return false
+	}
+
+	confirmed := make(map[string]bool, len(s.ParsedLists()))
+	for _, l := range s.ParsedLists() {
+		confirmed[l.UUID] = l.SubscriptionStatus == SubscriptionStatusConfirmed
+	}
+
+	for _, u := range listUUIDs {
+		if !confirmed[u] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetIDs returns the list of subscriber IDs.

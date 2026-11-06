@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/jmoiron/sqlx/types"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v5"
 )
@@ -19,6 +20,7 @@ type fakeSubscriberStore struct {
 type fakeSubscriberUpdate struct {
 	sub         models.Subscriber
 	uuids       []string
+	preconfirm  bool
 	deleteLists bool
 }
 
@@ -55,10 +57,11 @@ func (s *fakeSubscriberStore) GetSubscriber(id int, uuid, email string) (models.
 	return models.Subscriber{}, echo.NewHTTPError(http.StatusBadRequest, "subscriber not found")
 }
 
-func (s *fakeSubscriberStore) UpdateSubscriberWithLists(id int, sub models.Subscriber, _ []int, listUUIDs []string, _, deleteLists, _ bool, _ []int, _ bool) (models.Subscriber, bool, error) {
+func (s *fakeSubscriberStore) UpdateSubscriberWithLists(id int, sub models.Subscriber, _ []int, listUUIDs []string, preconfirm, deleteLists, _ bool, _ []int, _ bool) (models.Subscriber, bool, error) {
 	s.updates = append(s.updates, fakeSubscriberUpdate{
 		sub:         sub,
 		uuids:       append([]string(nil), listUUIDs...),
+		preconfirm:  preconfirm,
 		deleteLists: deleteLists,
 	})
 
@@ -150,5 +153,94 @@ func TestSubscribeTwiceAddsListsToExistingSubscriber(t *testing.T) {
 	}
 	if got, want := store.updates[0].uuids, []string{"news", "events"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("updated labels = %v, want %v", got, want)
+	}
+}
+
+// setSubscriberLists stores the raw list JSON on a subscriber already in the
+// fake store, the way GetSubscriber would return it from the database.
+func setSubscriberLists(store *fakeSubscriberStore, email, lists string) {
+	sub := store.subs[email]
+	sub.Lists = types.JSONText(lists)
+	store.subs[email] = sub
+}
+
+func TestSubscribeConfirmedMemberSkipsOptin(t *testing.T) {
+	store := newFakeSubscriberStore()
+	email := "ada@example.com"
+
+	if _, err := subscribeSubscriber(store, models.Subscriber{
+		Name:   "Ada",
+		Email:  email,
+		Status: models.SubscriberStatusEnabled,
+	}, []string{"news"}); err != nil {
+		t.Fatalf("first signup: %v", err)
+	}
+
+	setSubscriberLists(store, email, `[{"uuid":"news","subscription_status":"confirmed"}]`)
+
+	hasOptin, err := subscribeSubscriber(store, models.Subscriber{
+		Name:   "Ada",
+		Email:  email,
+		Status: models.SubscriberStatusEnabled,
+	}, []string{"news"})
+	if err != nil {
+		t.Fatalf("second signup: %v", err)
+	}
+	if hasOptin {
+		t.Error("confirmed member asked for opt-in, want none")
+	}
+
+	if len(store.updates) != 1 {
+		t.Fatalf("update calls = %d, want 1", len(store.updates))
+	}
+	if !store.updates[0].preconfirm {
+		t.Error("confirmed member was not preconfirmed, want immediate subscription")
+	}
+}
+
+func TestSubscribeUnconfirmedOrDisabledMemberStillOptsIn(t *testing.T) {
+	cases := []struct {
+		name   string
+		status string
+		lists  string
+	}{
+		{"unconfirmed label", models.SubscriberStatusEnabled, `[{"uuid":"news","subscription_status":"unconfirmed"}]`},
+		{"label not subscribed", models.SubscriberStatusEnabled, `[{"uuid":"other","subscription_status":"confirmed"}]`},
+		{"disabled subscriber", models.SubscriberStatusDisabled, `[{"uuid":"news","subscription_status":"confirmed"}]`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeSubscriberStore()
+			email := "ada@example.com"
+
+			if _, err := subscribeSubscriber(store, models.Subscriber{
+				Name:   "Ada",
+				Email:  email,
+				Status: models.SubscriberStatusEnabled,
+			}, []string{"news"}); err != nil {
+				t.Fatalf("first signup: %v", err)
+			}
+
+			sub := store.subs[email]
+			sub.Status = tc.status
+			store.subs[email] = sub
+			setSubscriberLists(store, email, tc.lists)
+
+			if _, err := subscribeSubscriber(store, models.Subscriber{
+				Name:   "Ada",
+				Email:  email,
+				Status: models.SubscriberStatusEnabled,
+			}, []string{"news"}); err != nil {
+				t.Fatalf("second signup: %v", err)
+			}
+
+			if len(store.updates) != 1 {
+				t.Fatalf("update calls = %d, want 1", len(store.updates))
+			}
+			if store.updates[0].preconfirm {
+				t.Error("member was preconfirmed, want opt-in")
+			}
+		})
 	}
 }
