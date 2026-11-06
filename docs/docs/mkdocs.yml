@@ -46,11 +46,13 @@ nav:
     - "Upgrade": upgrade.md
   - "Using listmonk":
     - "Concepts": concepts.md
+    - "Signup cards": signup-cards.md
     - "Templating": templating.md
     - "Querying and segmenting subscribers": querying-and-segmentation.md
     - "Bounce processing": bounces.md
     - "Messengers": "messengers.md"
     - "Archives": "archives.md"
+    - "Exporting posts": "export.md"
     - "Internationalization": "i18n.md"
     - "Integrating with external systems": external-integration.md
     - "User roles and permissions": roles-and-permissions.md

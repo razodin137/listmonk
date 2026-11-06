@@ -40,27 +40,6 @@ As an example:
 Besides the live archive, every published post is written to disk as a
 Markdown file with YAML front matter, ready for a Hugo-style site.
 
-Files go to `content/posts` by default. Set `app.archive_export_dir` in
-`config.toml` to change the directory. A relative path is resolved against the
-directory containing the config file, and the directory is created if it does
-not exist.
-
-```toml
-[app]
-archive_export_dir = "content/posts"
-```
-
-## Exporting campaigns already sent
-
-`--archive-export` writes the dataset and one Markdown file per campaign to the
-given directory. Add `--archive-years` to limit the export to the last few
-years; files are written newest first, and every campaign left out is logged
-with the reason it was skipped.
-
-```sh
-./listmonk --archive-export content/posts --archive-years 3
-```
-
-`--archive-backfill` does the same while also publishing every finished
-campaign that is not in the archive yet.
+See [Exporting posts](export.md) for the export directory, the front matter,
+and the commands that write campaigns already sent.
 
