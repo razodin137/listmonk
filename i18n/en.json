@@ -51,7 +51,7 @@
     "campaigns.schedule": "Schedule campaign",
     "campaigns.sendLater": "Send later",
     "campaigns.sendTest": "Send test message",
-    "campaigns.sendTestHelp": "Hit Enter after typing an address to add multiple recipients. The addresses must belong to existing subscribers.",
+    "campaigns.sendTestHelp": "Hit Enter after typing an address to add it. Test messages can go to any address.",
     "campaigns.sendToLists": "Lists to send to",
     "campaigns.start": "Start campaign",
     "campaigns.templatingRef": "Templating reference",

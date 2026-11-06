@@ -35,7 +35,9 @@ type campReq struct {
 
 	MediaIDs []int `json:"media"`
 
-	// This is only relevant to campaign test requests.
+	// TestEmail and SubscriberEmails are only relevant to campaign test
+	// requests. SubscriberEmails is retained for API compatibility.
+	TestEmail        string         `json:"email"`
 	SubscriberEmails pq.StringArray `json:"subscribers"`
 }
 
@@ -767,67 +769,66 @@ func (a *App) GetRunningCampaignStats(c *echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{out})
 }
 
-// TestCampaign handles the sending of a campaign message to
-// arbitrary subscribers for testing.
+// TestCampaign sends a campaign message to one or more arbitrary addresses
+// for testing. It renders the current form values through the campaign's
+// template without reading or writing subscribers or campaign counters.
 func (a *App) TestCampaign(c *echo.Context) error {
-	// Get the campaign ID.
 	id := getID(c)
 
-	// Check if the user has access to the campaign.
 	if err := a.checkCampaignPerm(auth.PermTypeManage, id, c); err != nil {
 		return err
 	}
 
-	// Get and validate fields.
-	var req campReq
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-
-	// Validate.
-	if c, err := a.validateCampaignFields(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	} else {
-		req = c
-	}
-	if len(req.SubscriberEmails) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.noSubsToTest"))
-	}
-
-	// Sanitize subscriber e-mails.
-	for i := range req.SubscriberEmails {
-		req.SubscriberEmails[i] = strings.ToLower(strings.TrimSpace(req.SubscriberEmails[i]))
-	}
-
-	// Get the subscribers from the DB by their e-mails.
-	subs, err := a.core.GetSubscribersByEmail(req.SubscriberEmails)
+	// Start from the saved campaign so the request has to carry only the
+	// values it overrides, such as the editor's unsaved body.
+	saved, err := a.core.GetCampaign(id, "", "")
 	if err != nil {
 		return err
 	}
 
-	// Exclude subscribers from lists that the user doesn't have access to.
-	user := auth.GetUser(c)
-	validSubs := subs[:0]
-	for _, s := range subs {
-		if err := a.hasSubPerm(user, auth.PermTypeGet|auth.PermTypeManage, []int{s.ID}); err == nil {
-			validSubs = append(validSubs, s)
+	req := campReq{Campaign: saved}
+	for _, l := range saved.ParsedLists() {
+		if l.ID > 0 {
+			req.ListIDs = append(req.ListIDs, l.ID)
 		}
 	}
-	subs = validSubs
-
-	// No subscribers.
-	if len(subs) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.noKnownSubsToTest"))
+	for _, m := range saved.ParsedMedia() {
+		if m.ID > 0 {
+			req.MediaIDs = append(req.MediaIDs, m.ID)
+		}
 	}
 
-	// Get the campaign from the DB for previewing.
-	tplID, _ := strconv.Atoi(c.FormValue("template_id"))
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+
+	// The admin UI posts JSON, so template_id cannot come from FormValue alone.
+	tplID := 0
+	if req.TemplateID.Valid {
+		tplID = req.TemplateID.Int
+	} else if v, _ := strconv.Atoi(c.FormValue("template_id")); v > 0 {
+		tplID = v
+	}
+	if req.ContentType == models.CampaignContentTypeVisual {
+		tplID = 0
+	}
+
+	valid, err := a.validateCampaignFields(req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	req = valid
+
+	emails, err := a.campaignTestRecipients(req)
+	if err != nil {
+		return err
+	}
+
 	camp, err := a.core.GetCampaignForPreview(id, tplID)
 	if err != nil {
 		return err
 	}
 
-	// Override certain values from the DB with incoming values.
 	camp.Name = req.Name
 	camp.Subject = req.Subject
 	camp.FromEmail = req.FromEmail
@@ -837,28 +838,66 @@ func (a *App) TestCampaign(c *echo.Context) error {
 	camp.ContentType = req.ContentType
 	camp.Headers = req.Headers
 	camp.TemplateID = req.TemplateID
+	camp.MediaIDs = nil
 	for _, id := range req.MediaIDs {
 		if id > 0 {
 			camp.MediaIDs = append(camp.MediaIDs, int64(id))
 		}
 	}
 
-	// Send the test messages.
-	for _, s := range subs {
-		sub := s
+	// Keep test sends out of view, click, and unsubscribe accounting.
+	camp.UUID = dummyUUID
 
-		if err := a.sendTestMessage(sub, &camp); err != nil {
-			a.log.Printf("error sending test message: %v", err)
-			return echo.NewHTTPError(http.StatusInternalServerError,
-				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
-		}
+	if err := a.sendTestMessages(emails, &camp); err != nil {
+		a.log.Printf("error sending test message: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError,
+			a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
 	}
 
 	return c.JSON(http.StatusOK, okResp{true})
 }
 
-// sendTestMessage takes a campaign and a subscriber and sends out a sample campaign message.
-func (a *App) sendTestMessage(sub models.Subscriber, camp *models.Campaign) error {
+// campaignTestRecipients validates and deduplicates test-send addresses.
+func (a *App) campaignTestRecipients(req campReq) ([]string, error) {
+	raw := append([]string(nil), req.SubscriberEmails...)
+	if req.TestEmail != "" {
+		raw = append(raw, req.TestEmail)
+	}
+
+	if len(raw) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.noSubsToTest"))
+	}
+
+	seen := make(map[string]struct{}, len(raw))
+	emails := make([]string, 0, len(raw))
+	for _, e := range raw {
+		e = strings.TrimSpace(e)
+		if e == "" {
+			continue
+		}
+
+		addr, err := a.importer.SanitizeEmail(e)
+		if err != nil {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		if _, ok := seen[addr]; ok {
+			continue
+		}
+
+		seen[addr] = struct{}{}
+		emails = append(emails, addr)
+	}
+
+	if len(emails) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.noSubsToTest"))
+	}
+
+	return emails, nil
+}
+
+// sendTestMessages renders one test message per address through the campaign's
+// template without attaching the messages to a campaign pipe.
+func (a *App) sendTestMessages(emails []string, camp *models.Campaign) error {
 	if err := a.manager.LoadInlineImages(camp); err != nil {
 		a.log.Printf("error loading inline images: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -870,14 +909,22 @@ func (a *App) sendTestMessage(sub models.Subscriber, camp *models.Campaign) erro
 			a.i18n.Ts("templates.errorCompiling", "error", err.Error()))
 	}
 
-	// Create a sample campaign message.
-	msg, err := a.manager.NewCampaignMessage(camp, sub)
-	if err != nil {
-		a.log.Printf("error rendering message: %v", err)
-		return echo.NewHTTPError(http.StatusNotFound, a.i18n.Ts("templates.errorRendering", "error", err.Error()))
+	for _, email := range emails {
+		sub := dummySubscriber
+		sub.Email = email
+
+		msg, err := a.manager.NewCampaignMessage(camp, sub)
+		if err != nil {
+			a.log.Printf("error rendering message: %v", err)
+			return echo.NewHTTPError(http.StatusNotFound, a.i18n.Ts("templates.errorRendering", "error", err.Error()))
+		}
+
+		if err := a.manager.PushCampaignMessage(msg); err != nil {
+			return err
+		}
 	}
 
-	return a.manager.PushCampaignMessage(msg)
+	return nil
 }
 
 // validateCampaignFields validates incoming campaign field values.
