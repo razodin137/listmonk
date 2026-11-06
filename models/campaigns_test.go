@@ -100,6 +100,27 @@ func TestArchiveTemplateFallsBackToCampaignTemplate(t *testing.T) {
 	}
 }
 
+func TestArchivedForPublic(t *testing.T) {
+	cases := []struct {
+		name string
+		c    Campaign
+		want bool
+	}{
+		{"draft stays hidden", Campaign{Archive: true, Status: CampaignStatusDraft, Type: CampaignTypeRegular}, false},
+		{"finished mail is public", Campaign{Archive: true, Status: CampaignStatusFinished, Type: CampaignTypeRegular}, true},
+		{"finished post is public", Campaign{Archive: true, Status: CampaignStatusFinished, Type: CampaignTypePost}, true},
+		{"running mail is public", Campaign{Archive: true, Status: CampaignStatusRunning, Type: CampaignTypeRegular}, true},
+		{"unarchived post is hidden", Campaign{Archive: false, Status: CampaignStatusFinished, Type: CampaignTypePost}, false},
+		{"optin is hidden", Campaign{Archive: true, Status: CampaignStatusFinished, Type: CampaignTypeOptin}, false},
+	}
+
+	for _, tc := range cases {
+		if got := tc.c.ArchivedForPublic(); got != tc.want {
+			t.Errorf("%s: ArchivedForPublic() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 func renderTestCampaign(t *testing.T, c *Campaign, compile func(template.FuncMap) error) string {
 	t.Helper()
 

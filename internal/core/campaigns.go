@@ -76,7 +76,7 @@ func (c *Core) GetArchivedCampaign(id int, uuid, archiveSlug string) (models.Cam
 		return out, err
 	}
 
-	if !out.Archive {
+	if !out.ArchivedForPublic() {
 		return models.Campaign{}, echo.NewHTTPError(http.StatusBadRequest,
 			c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.campaign}"))
 	}
@@ -253,6 +253,10 @@ func (c *Core) UpdateCampaignStatus(id int, status string) (models.Campaign, err
 		return models.Campaign{}, err
 	}
 
+	if cm.Type == models.CampaignTypePost {
+		return models.Campaign{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.T("campaigns.cantUpdate"))
+	}
+
 	errMsg := ""
 	switch status {
 	case models.CampaignStatusDraft:
@@ -300,6 +304,39 @@ func (c *Core) UpdateCampaignStatus(id int, status string) (models.Campaign, err
 
 	cm.Status = status
 	return cm, nil
+}
+
+// PublishCampaign moves a draft campaign to the public archive without
+// sending it. Publishing an already finished campaign keeps the operation
+// idempotent so a failed export can be retried.
+func (c *Core) PublishCampaign(id int) (models.Campaign, error) {
+	cm, err := c.GetCampaign(id, "", "")
+	if err != nil {
+		return models.Campaign{}, err
+	}
+
+	if cm.Type != models.CampaignTypeRegular && cm.Type != models.CampaignTypePost {
+		return models.Campaign{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.T("campaigns.cantUpdate"))
+	}
+
+	switch cm.Status {
+	case models.CampaignStatusDraft:
+		res, err := c.q.PublishCampaign.Exec(cm.ID)
+		if err != nil {
+			c.log.Printf("error publishing campaign: %v", err)
+			return models.Campaign{}, echo.NewHTTPError(http.StatusInternalServerError,
+				c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.campaign}", "error", pqErrMsg(err)))
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return models.Campaign{}, echo.NewHTTPError(http.StatusBadRequest,
+				c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.campaign}"))
+		}
+	case models.CampaignStatusFinished:
+	default:
+		return models.Campaign{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.T("campaigns.cantUpdate"))
+	}
+
+	return c.GetCampaign(id, "", "")
 }
 
 // UpdateCampaignArchive updates a campaign's archive properties.

@@ -32,6 +32,7 @@ type campArchive struct {
 	Content   string    `json:"content"`
 	Excerpt   string    `json:"excerpt"`
 	CreatedAt null.Time `json:"created_at"`
+	StartedAt null.Time `json:"started_at"`
 	SendAt    null.Time `json:"send_at"`
 	URL       string    `json:"url"`
 }
@@ -46,17 +47,23 @@ type campArchiveEntry struct {
 	Body  string    `json:"body"`
 }
 
-// campaignArchiveDate returns the date a campaign was sent. Scheduled
-// campaigns fall back to their send time or creation time.
+// campaignArchiveDate returns the date an archived campaign was started,
+// published, or created.
 func campaignArchiveDate(c models.Campaign) null.Time {
-	if c.StartedAt.Valid {
-		return c.StartedAt
+	return archiveDateFrom(c.StartedAt, c.SendAt, c.CreatedAt)
+}
+
+// archiveDateFrom picks the first meaningful timestamp for an archived
+// campaign. Published posts have a start time but no send time.
+func archiveDateFrom(startedAt, sendAt, createdAt null.Time) null.Time {
+	if startedAt.Valid {
+		return startedAt
 	}
-	if c.SendAt.Valid {
-		return c.SendAt
+	if sendAt.Valid {
+		return sendAt
 	}
 
-	return c.CreatedAt
+	return createdAt
 }
 
 // campaignArchiveSlug returns a campaign's stable archive slug. A slug that
@@ -80,10 +87,7 @@ func campaignArchiveTags(c models.Campaign) []string {
 func (a *App) archiveListData(camps []campArchive) archive.ListData {
 	entries := make([]archive.Entry, 0, len(camps))
 	for _, camp := range camps {
-		date := camp.SendAt
-		if !date.Valid {
-			date = camp.CreatedAt
-		}
+		date := archiveDateFrom(camp.StartedAt, camp.SendAt, camp.CreatedAt)
 
 		entries = append(entries, archive.Entry{
 			Title:    camp.Subject,
@@ -381,16 +385,14 @@ func (a *App) CampaignArchivePage(c *echo.Context) error {
 
 	// Get the campaign from the DB.
 	pubCamp, err := a.core.GetArchivedCampaign(0, uuid, slug)
-	if err != nil || pubCamp.Type != models.CampaignTypeRegular {
+	if err != nil || !pubCamp.ArchivedForPublic() {
 		notFound := false
 
-		// Camppaig doesn't exist.
 		if er, ok := err.(*echo.HTTPError); ok {
 			if er.Code == http.StatusBadRequest {
 				notFound = true
 			}
-		} else if pubCamp.Type != models.CampaignTypeRegular {
-			// Campaign isn't of regular type.
+		} else if err == nil {
 			notFound = true
 		}
 
@@ -429,13 +431,7 @@ func (a *App) CampaignArchivePage(c *echo.Context) error {
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	// Sent campaigns show the send time; fall back to the creation time.
-	date := pubCamp.CreatedAt
-	if pubCamp.SendAt.Valid {
-		date = pubCamp.SendAt
-	}
-
-	return a.renderArchivePage(c, a.archivePageData(msg.Subject(), date, template.HTML(msg.Body())))
+	return a.renderArchivePage(c, a.archivePageData(msg.Subject(), campaignArchiveDate(pubCamp), template.HTML(msg.Body())))
 }
 
 // CampaignArchivePageLatest renders the latest public campaign.
@@ -476,6 +472,7 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 			Subject:   camp.Subject,
 			Excerpt:   campaignExcerpt(*camp),
 			CreatedAt: camp.CreatedAt,
+			StartedAt: camp.StartedAt,
 			SendAt:    camp.SendAt,
 		}
 

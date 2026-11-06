@@ -249,15 +249,19 @@ function component(camp, sel) {
     },
 
     get canStart() {
-      return ['draft', 'paused'].includes(this.form.status) && !this.form.sendLater;
+      return this.form.type !== 'post' && ['draft', 'paused'].includes(this.form.status) && !this.form.sendLater;
     },
 
     get canSchedule() {
-      return ['draft', 'paused'].includes(this.form.status) && this.form.sendLater && !!this.form.sendAtLocal;
+      return this.form.type !== 'post' && ['draft', 'paused'].includes(this.form.status) && this.form.sendLater && !!this.form.sendAtLocal;
     },
 
     get canUnSchedule() {
       return this.form.status === 'scheduled';
+    },
+
+    get canPublish() {
+      return !this.isNew && this.form.status === 'draft' && this.form.type !== 'optin';
     },
 
     get canArchive() {
@@ -461,6 +465,19 @@ function component(camp, sel) {
 
       await api('campaigns', `/campaigns/${this.form.id}/status`, 'PUT', { status: 'draft' });
       u.reload();
+    },
+
+    async onPublish() {
+      if (!this.canPublish) {
+        return;
+      }
+      if (!(await u.confirm(i18n.t('globals.messages.confirm')))) {
+        return;
+      }
+
+      await this.onSave();
+      await api('campaigns', `/campaigns/${this.form.id}/publish`, 'PUT', {});
+      u.redirect(`${urls.admin}/campaigns`, { message: i18n.t('globals.messages.done') });
     },
 
     async onTest() {

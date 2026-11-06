@@ -11,6 +11,11 @@
 			</label>
 		</div>
 		{{ if and $canManage }}
+		<template x-if="canPublish">
+			<div class="col-6 col-end align-right">
+				<button type="button" data-variant="primary" @click="onPublish" :disabled="isLoading('campaigns')">{{ Icon "archive" }} {{ $root.L.T "campaigns.archiveEnable" }}</button>
+			</div>
+		</template>
 		<template x-if="!canEdit && canArchive">
 			<div class="col-6 col-end align-right">
 					<button type="button" data-variant="primary" @click="onSaveArchive" :disabled="isLoading('campaigns')">{{ $root.L.T "globals.buttons.saveChanges" }}</button>

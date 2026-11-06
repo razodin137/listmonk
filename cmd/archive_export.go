@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/knadh/listmonk/models"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 const (
@@ -84,7 +85,7 @@ func (a *App) BackfillArchive(dir string) error {
 // publishCampaignToArchive marks a campaign as archived using its stored
 // archive metadata. It reports whether the campaign was newly published.
 func (a *App) publishCampaignToArchive(c *models.Campaign) (bool, error) {
-	if c.Archive {
+	if c.Archive && c.ArchiveSlug.Valid && c.ArchiveSlug.String != "" {
 		return false, nil
 	}
 
@@ -98,13 +99,42 @@ func (a *App) publishCampaignToArchive(c *models.Campaign) (bool, error) {
 		}
 	}
 
-	if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, c.ArchiveSlug.String); err != nil {
+	slug := c.ArchiveSlug.String
+	if slug == "" {
+		used, err := a.archivedSlugs()
+		if err != nil {
+			return false, err
+		}
+		slug = models.MakeArchiveSlug(c.Subject, used)
+	}
+
+	if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, slug); err != nil {
 		return false, fmt.Errorf("publishing campaign to archive: %w", err)
 	}
 
+	published := !c.Archive
 	c.Archive = true
+	c.ArchiveSlug = null.NewString(slug, true)
 
-	return true, nil
+	return published, nil
+}
+
+// archivedSlugs returns the slugs already taken by public archive entries so
+// a new post never renames an older one.
+func (a *App) archivedSlugs() (map[string]struct{}, error) {
+	camps, _, err := a.core.GetArchivedCampaigns(0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("fetching archived campaigns: %w", err)
+	}
+
+	used := make(map[string]struct{}, len(camps))
+	for _, camp := range camps {
+		if camp.ArchiveSlug.Valid && camp.ArchiveSlug.String != "" {
+			used[camp.ArchiveSlug.String] = struct{}{}
+		}
+	}
+
+	return used, nil
 }
 
 // ExportArchive writes the public archive dataset, one Markdown file per

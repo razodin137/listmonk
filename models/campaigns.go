@@ -23,6 +23,7 @@ const (
 	CampaignStatusCancelled     = "cancelled"
 	CampaignTypeRegular         = "regular"
 	CampaignTypeOptin           = "optin"
+	CampaignTypePost            = "post"
 	CampaignContentTypeRichtext = "richtext"
 	CampaignContentTypeHTML     = "html"
 	CampaignContentTypeMarkdown = "markdown"
@@ -57,6 +58,22 @@ func UniqueSlug(slug string, used map[string]struct{}) string {
 			return candidate
 		}
 	}
+}
+
+// ArchivedForPublic reports whether the campaign is visible in the public
+// archive. Drafts stay hidden even when their archive flag is on.
+func (c Campaign) ArchivedForPublic() bool {
+	if !c.Archive {
+		return false
+	}
+
+	switch c.Status {
+	case CampaignStatusRunning, CampaignStatusPaused, CampaignStatusFinished:
+	default:
+		return false
+	}
+
+	return c.Type == CampaignTypeRegular || c.Type == CampaignTypePost
 }
 
 // CampOpt is a campaign manager option type.

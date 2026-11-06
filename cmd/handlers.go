@@ -231,6 +231,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.POST("/api/campaigns", pm(a.CreateCampaign, auth.PermCampaignsManageAll, auth.PermCampaignsManage))
 		g.PUT("/api/campaigns/:id", pm(hasID(a.UpdateCampaign), auth.PermCampaignsManageAll, auth.PermCampaignsManage))
 		g.PUT("/api/campaigns/:id/status", pm(hasID(a.UpdateCampaignStatus), auth.PermCampaignsSend))
+		g.PUT("/api/campaigns/:id/publish", pm(hasID(a.PublishCampaign), auth.PermCampaignsManageAll, auth.PermCampaignsManage))
 		g.PUT("/api/campaigns/:id/archive", pm(hasID(a.UpdateCampaignArchive), auth.PermCampaignsManageAll, auth.PermCampaignsManage))
 		g.DELETE("/api/campaigns", pm(a.DeleteCampaigns, auth.PermCampaignsManage, auth.PermCampaignsManageAll))
 		g.DELETE("/api/campaigns/:id", pm(hasID(a.DeleteCampaign), auth.PermCampaignsManageAll, auth.PermCampaignsManage))

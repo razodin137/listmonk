@@ -109,7 +109,7 @@ SELECT COUNT(*) OVER () AS total, campaigns.*,
         ELSE templates.id = campaigns.archive_template_id END
     )
     LEFT JOIN templates archive_templates ON (archive_templates.id = campaigns.archive_template_id)
-    WHERE campaigns.archive=true AND campaigns.type='regular' AND campaigns.status=ANY('{running, paused, finished}')
+    WHERE campaigns.archive=true AND campaigns.type IN ('regular', 'post') AND campaigns.status=ANY('{running, paused, finished}')
     ORDER by COALESCE(campaigns.started_at, campaigns.send_at, campaigns.created_at) DESC,
         campaigns.id DESC OFFSET $1 LIMIT (CASE WHEN $2::INT < 1 THEN NULL ELSE $2::INT END);
 
@@ -445,6 +445,14 @@ UPDATE campaigns SET
     ),
     updated_at=NOW()
 WHERE id = $1;
+
+-- name: publish-campaign
+UPDATE campaigns SET
+    status='finished',
+    send_at=NULL,
+    started_at=COALESCE(started_at, NOW()),
+    updated_at=NOW()
+WHERE id=$1 AND status='draft';
 
 -- name: update-campaign-archive
 UPDATE campaigns SET

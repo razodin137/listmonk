@@ -8,6 +8,11 @@ To make a campaign available in the public archive (provided it has been
 enabled in the settings as described above), enable the option
 'Publish to public archive' under Campaigns -> Create new -> Archive.
 
+A draft can also be published without sending it. Open the campaign's Archive
+tab and click 'Publish to public archive'. The post is written to the live
+archive, the dataset, the feed, and the exported files exactly as a sent
+campaign is, while the campaign itself never goes through the mail queue.
+
 When using template variables that depend on subscriber data (such as any
 template variable referencing `.Subscriber`), such data must be supplied
 as 'Campaign metadata', which is a JSON object that will be used in place

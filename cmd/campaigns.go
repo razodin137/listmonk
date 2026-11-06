@@ -549,6 +549,7 @@ func (a *App) CreateCampaign(c *echo.Context) error {
 		o = op
 	case "", models.CampaignTypeRegular:
 		o.Type = models.CampaignTypeRegular
+	case models.CampaignTypePost:
 	default:
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "type"))
 	}
@@ -610,6 +611,9 @@ func (a *App) UpdateCampaign(c *echo.Context) error {
 		return err
 	}
 
+	// The campaign type is fixed at creation.
+	o.Campaign.Type = cm.Type
+
 	// Filter lists against the current user's permitted lists.
 	user := auth.GetUser(c)
 	o.ListIDs = user.FilterListsByPerm(auth.PermTypeManage, o.ListIDs)
@@ -657,6 +661,29 @@ func (a *App) UpdateCampaignStatus(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, okResp{out})
+}
+
+// PublishCampaign publishes a draft campaign to the public archive without
+// sending it.
+func (a *App) PublishCampaign(c *echo.Context) error {
+	id := getID(c)
+
+	if err := a.checkCampaignPerm(auth.PermTypeManage, id, c); err != nil {
+		return err
+	}
+
+	camp, err := a.core.PublishCampaign(id)
+	if err != nil {
+		return err
+	}
+
+	if err := a.archiveFinishedCampaign(&camp); err != nil {
+		a.log.Printf("error publishing campaign to archive: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError,
+			a.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.campaign}", "error", err.Error()))
+	}
+
+	return c.JSON(http.StatusOK, okResp{camp})
 }
 
 // UpdateCampaignArchive handles campaign status modification.
@@ -967,7 +994,7 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 		}
 	}
 
-	if len(c.ListIDs) == 0 {
+	if c.Type != models.CampaignTypePost && len(c.ListIDs) == 0 {
 		return c, errors.New(a.i18n.T("campaigns.fieldInvalidListIDs"))
 	}
 

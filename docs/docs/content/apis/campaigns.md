@@ -11,6 +11,7 @@
 | POST   | [/api/campaigns/{campaign_id}/test](#post-apicampaignscampaign_idtest)      | Test campaign with arbitrary subscribers. |
 | PUT    | [/api/campaigns/{campaign_id}](#put-apicampaignscampaign_id)                | Update a campaign.                        |
 | PUT    | [/api/campaigns/{campaign_id}/status](#put-apicampaignscampaign_idstatus)   | Change status of a campaign.              |
+| PUT    | [/api/campaigns/{campaign_id}/publish](#put-apicampaignscampaign_idpublish) | Publish a draft without sending it.       |
 | PUT    | [/api/campaigns/{campaign_id}/archive](#put-apicampaignscampaign_idarchive) | Publish campaign to public archive.       |
 | DELETE | [/api/campaigns/{campaign_id}](#delete-apicampaignscampaign_id)             | Delete a campaign.                        |
 | DELETE | [/api/campaigns](#delete-apicampaigns)                                      | Delete multiple campaigns.                |
@@ -445,6 +446,26 @@ curl -u "api_user:token" -X PUT 'http://localhost:9000/api/campaigns/1/status' \
         "messenger": "email"
     }
 }
+```
+
+______________________________________________________________________
+
+#### PUT /api/campaigns/{campaign_id}/publish
+
+Publish a draft campaign to the public archive without sending e-mail. The
+campaign's subject, body, tags, and archive slug become a post in the archive,
+dataset, feed, and exported files. Drafts remain hidden until this is called.
+
+##### Parameters
+
+| Name        | Type   | Required | Description                          |
+| :---------- | :----- | :------- | :----------------------------------- |
+| campaign_id | number | Yes      | Campaign ID to publish without send. |
+
+##### Example Request
+
+```shell
+curl -u "api_user:token" -X PUT 'http://localhost:8080/api/campaigns/33/publish'
 ```
 
 ______________________________________________________________________
