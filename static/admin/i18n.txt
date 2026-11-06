@@ -46,6 +46,7 @@ globals.terms.none
 editor.paragraph
 editor.heading
 editor.blockquote
+editor.imageMissing
 globals.terms.code
 editor.words
 editor.findCount

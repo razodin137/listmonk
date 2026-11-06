@@ -121,6 +121,7 @@
     "editor.heading": "Heading",
     "editor.highlightColor": "Highlight color",
     "editor.hr": "Horizontal line",
+    "editor.imageMissing": "Image not found in the media library: {filename}",
     "editor.indent": "Indent",
     "editor.insertHTML": "Insert HTML",
     "editor.italic": "Italic",

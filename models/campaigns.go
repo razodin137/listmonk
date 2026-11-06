@@ -1,7 +1,6 @@
 package models
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -102,6 +101,11 @@ type Campaign struct {
 
 	// Fetched bodies of the attachments.
 	Attachments []Attachment `json:"-" db:"-"`
+
+	// MediaURLResolver resolves Markdown image filenames against the media
+	// library. MediaWarnings lists image references that could not be resolved.
+	MediaURLResolver func(string) (string, error) `json:"-" db:"-"`
+	MediaWarnings    []string                     `json:"-" db:"-"`
 
 	// Pseudofield for getting the total number of subscribers
 	// in searches and queries.
@@ -305,12 +309,21 @@ func (c *Campaign) renderBody() (string, error) {
 		return c.Body, nil
 	}
 
-	var b bytes.Buffer
-	if err := markdown.Convert([]byte(c.Body), &b); err != nil {
-		return "", fmt.Errorf("error rendering markdown: %w", err)
+	out, warnings, err := renderMarkdown([]byte(c.Body), c.mediaResolver())
+	if err != nil {
+		return "", err
+	}
+	c.MediaWarnings = warnings
+
+	return out, nil
+}
+
+func (c *Campaign) mediaResolver() func(string) (string, error) {
+	if c.MediaURLResolver != nil {
+		return c.MediaURLResolver
 	}
 
-	return b.String(), nil
+	return MarkdownMediaResolver
 }
 
 func compileTxtTpl(label, val string, f template.FuncMap) (*tplRenderer, error) {
@@ -342,11 +355,12 @@ func (c *Campaign) ConvertContent(from, to string) (string, error) {
 	var out string
 	if from == CampaignContentTypeMarkdown &&
 		(to == CampaignContentTypeHTML || to == CampaignContentTypeRichtext) {
-		var b bytes.Buffer
-		if err := markdown.Convert([]byte(c.Body), &b); err != nil {
+		html, warnings, err := renderMarkdown([]byte(c.Body), c.mediaResolver())
+		if err != nil {
 			return out, err
 		}
-		out = b.String()
+		c.MediaWarnings = warnings
+		out = html
 	} else {
 		return out, errors.New("unknown formats to convert")
 	}

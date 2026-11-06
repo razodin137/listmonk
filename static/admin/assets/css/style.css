@@ -1270,6 +1270,28 @@ td > .empty-state {
     line-height: 1;
 }
 
+.md-preview-warnings {
+    flex: none;
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--border);
+    background: color-mix(in srgb, var(--danger, #b42318) 10%, transparent);
+    color: var(--danger, #b42318);
+    font-size: var(--text-8);
+    line-height: 1.5;
+}
+
+.md-preview-warnings[hidden] {
+    display: none;
+}
+
+.md-preview-warning {
+    margin: 0;
+}
+
+.md-preview-warning + .md-preview-warning {
+    margin-block-start: var(--space-1);
+}
+
 .md-preview {
     flex: 1;
     min-height: 0;

@@ -192,11 +192,16 @@ function buildMarkdownPreview() {
   body.className = "md-preview-body"
   scroller.append(body)
 
+  const warnings = document.createElement("div")
+  warnings.className = "md-preview-warnings"
+  warnings.hidden = true
+  warnings.setAttribute("role", "status")
+
   head.append(label, close)
-  pane.append(head, scroller)
+  pane.append(head, warnings, scroller)
 
   return {
-    pane, scroller, body, close, toggle: null
+    pane, scroller, body, warnings, close, toggle: null
   }
 }
 
@@ -217,6 +222,20 @@ function writePreviewPreference(visible) {
   }
 }
 
+// Return the bare filename in an image source, or an empty string for URLs and
+// absolute paths.
+function mediaFilename(src) {
+  if (!src || /[/\\?#:]/.test(src)) {
+    return ""
+  }
+
+  try {
+    return decodeURIComponent(src)
+  } catch {
+    return src
+  }
+}
+
 class CodeEditor extends HTMLElement {
   constructor() {
     super()
@@ -227,6 +246,9 @@ class CodeEditor extends HTMLElement {
     this.previewVisible = false
     this.previewTimer = null
     this.previewSyncing = false
+    this.media = null
+    this.mediaPromise = null
+    this.mediaLoaded = false
   }
 
   connectedCallback() {
@@ -418,7 +440,94 @@ class CodeEditor extends HTMLElement {
     }
 
     const { body } = convert(this.editor.state.doc.toString(), "markdown", "html")
-    this.preview.body.innerHTML = body
+    const rendered = this._resolvePreviewMedia(body)
+    this.preview.body.innerHTML = rendered.html
+    this._renderWarnings(rendered.missing)
+
+    if (!this.mediaLoaded && !this.mediaPromise) {
+      this._loadMedia()
+    }
+  }
+
+  // Replace bare image filenames in the rendered preview with their media
+  // library URLs, collecting the names that do not exist.
+  _resolvePreviewMedia(html) {
+    const missing = []
+    if (!this.media) {
+      return { html, missing }
+    }
+
+    const doc = new DOMParser().parseFromString(html, "text/html")
+    doc.querySelectorAll("img").forEach((img) => {
+      const name = mediaFilename(img.getAttribute("src"))
+      if (!name) {
+        return
+      }
+
+      const url = this.media.get(name)
+      if (url) {
+        img.setAttribute("src", url)
+        return
+      }
+
+      missing.push(name)
+    })
+
+    return { html: doc.body.innerHTML, missing }
+  }
+
+  _loadMedia() {
+    this.mediaPromise = this._fetchMedia()
+      .then((media) => {
+        this.media = media
+        if (this.previewVisible) {
+          this._renderPreview()
+        }
+      })
+      .catch(() => { })
+      .finally(() => {
+        this.mediaLoaded = true
+        this.mediaPromise = null
+      })
+  }
+
+  async _fetchMedia() {
+    const perPage = 50
+    const media = new Map()
+
+    for (let page = 1; ; page += 1) {
+      const resp = await fetch(`/api/media?per_page=${perPage}&page=${page}`, {
+        headers: { Accept: "application/json" }
+      })
+      if (!resp.ok) {
+        return null
+      }
+
+      const out = await resp.json()
+      const results = out?.data?.results || []
+      results.forEach((m) => media.set(m.filename, m.url))
+
+      if (results.length < perPage) {
+        return media
+      }
+    }
+  }
+
+  _renderWarnings(warnings) {
+    const el = this.preview.warnings
+    const unique = [ ...new Set(warnings || []) ]
+
+    el.replaceChildren()
+    el.hidden = unique.length === 0
+
+    unique.forEach((filename) => {
+      const line = document.createElement("p")
+      line.className = "md-preview-warning"
+      line.textContent = translate(
+        "editor.imageMissing", "Image not found in the media library: {filename}"
+      ).replace("{filename}", filename)
+      el.append(line)
+    })
   }
 
   get value() {

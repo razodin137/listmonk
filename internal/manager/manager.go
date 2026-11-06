@@ -199,6 +199,9 @@ func New(cfg Config, store Store, i *i18n.I18n, l *log.Logger) *Manager {
 		slidingStart: time.Now(),
 	}
 	m.tplFuncs = m.makeGnericFuncMap()
+	if store != nil {
+		models.MarkdownMediaResolver = store.GetMediaURLByFilename
+	}
 
 	return m
 }
