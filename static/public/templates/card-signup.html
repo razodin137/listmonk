@@ -5,8 +5,11 @@
         <p>{{ .Data.Card.Description }}</p>
     {{ end }}
 
-    <form method="post" action="" class="form">
+    <form method="post" action="{{ .Data.Action }}" class="form">
         <div>
+            {{ range .Data.Labels }}
+                <input type="hidden" name="l" value="{{ .UUID }}" />
+            {{ end }}
             <p>
                 <label for="email">{{ L.T "globals.fields.email" }}</label>
                 <input id="email" name="email" required="true" type="email" placeholder="{{ L.T "globals.fields.email" }}" autofocus="true" >
@@ -25,7 +28,11 @@
                         <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
                     {{ else if eq .Data.Captcha.Provider "altcha" }}
                         <altcha-widget challenge="{{ .RootURL }}/api/public/captcha/altcha"></altcha-widget>
-                        <script type="module" src="{{ .RootURL }}/public/static/altcha.umd.js" async defer></script>
+                        {{ if .Data.AltchaJS }}
+                            <script type="module">{{ .Data.AltchaJS }}</script>
+                        {{ else }}
+                            <script type="module" src="{{ .RootURL }}/public/static/altcha.umd.js" async defer></script>
+                        {{ end }}
                     {{ end }}
                 </div>
             {{ end }}

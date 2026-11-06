@@ -1,0 +1,22 @@
+{{ define "card-export" }}<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="robots" content="noindex" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .Data.Card.Name }} - {{ .SiteName }}</title>
+    <style>{{ .Data.Styles }}</style>
+</head>
+<body>
+    <div class="container wrap">
+        <header class="header">
+            <div class="logo"><a href="{{ .RootURL }}">{{ .SiteName }}</a></div>
+        </header>
+        {{ template "card-signup" . }}
+    </div>
+    <footer class="container">
+        {{ L.T "public.poweredBy" }} <a target="_blank" rel="noreferrer" href="https://listmonk.app">listmonk</a>
+    </footer>
+</body>
+</html>
+{{ end }}

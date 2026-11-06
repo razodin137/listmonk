@@ -48,6 +48,18 @@
 		</div>
 	</div>
 
+	<div class="card">
+		<div class="hstack justify-between gap-2">
+			<div>
+				<h4 class="title">{{ Icon "download-cloud" }} {{ .L.T "cards.export" }}</h4>
+				<p class="text-small text-light">{{ .L.T "cards.exportHelp" }}</p>
+			</div>
+			<a href="{{ URI "/admin/cards" }}/{{ $c.ID }}/export" class="button small" data-variant="secondary" data-testid="btn-export-html" download="{{ $c.Slug }}.html">
+				{{ Icon "download-cloud" }} {{ .L.T "cards.export" }}
+			</a>
+		</div>
+	</div>
+
 	<section class="row">
 		<div class="col-3">
 			<article class="card float stat-card">

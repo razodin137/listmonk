@@ -54,6 +54,8 @@
     "cards.confirmDelete": "Are you sure? This does not delete subscribers.",
     "cards.embed": "Embed",
     "cards.embedHelp": "Paste this into any page to show the signup form without inheriting the page's styles.",
+    "cards.export": "Export HTML",
+    "cards.exportHelp": "Download this card as a single HTML file with its styles inlined. Drop it on any static site; the form posts back here with the card's labels.",
     "cards.joins": "Joins",
     "cards.labels": "Labels",
     "cards.labelsHelp": "People who sign up through this card are added to these labels.",

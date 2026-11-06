@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"html"
+	"html/template"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/captcha"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v5"
 )
@@ -270,8 +273,17 @@ func (a *App) DuplicateCard(c *echo.Context) error {
 // cardTpl is the public view of a single signup card.
 type cardTpl struct {
 	publicTpl
-	Card    models.Card
-	Captcha captchaTpl
+	Card     models.Card
+	Captcha  captchaTpl
+	Action   string
+	Labels   []models.CardList
+	AltchaJS template.JS
+}
+
+// cardExportTpl is a card rendered as a single self-contained HTML document.
+type cardExportTpl struct {
+	cardTpl
+	Styles template.CSS
 }
 
 // CardPage renders a card as a standalone public signup page.
@@ -327,6 +339,113 @@ func (a *App) CardEmbedPage(c *echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "card-embed", out)
+}
+
+// cardExportAction returns the absolute URL that a downloaded card posts to.
+func cardExportAction(rootURL string, card models.Card) string {
+	return fmt.Sprintf("%s/signup/%s", strings.TrimSuffix(rootURL, "/"), url.PathEscape(card.Slug))
+}
+
+// cardExportFilename returns the download filename for a card.
+func cardExportFilename(card models.Card) string {
+	slug := card.Slug
+	if slug == "" {
+		slug = models.MakeSlug(card.Name)
+	}
+	if slug == "" {
+		slug = "card"
+	}
+
+	return slug + ".html"
+}
+
+// cardRootURL returns the absolute root URL for links back to this install.
+func (a *App) cardRootURL(c *echo.Context) string {
+	if root := strings.TrimSuffix(a.urlCfg.RootURL, "/"); root != "" {
+		return root
+	}
+
+	return fmt.Sprintf("%s://%s", c.Scheme(), c.Request().Host)
+}
+
+// makeCardExport builds the self-contained export view for a card.
+func (a *App) makeCardExport(c *echo.Context, card models.Card) (cardExportTpl, error) {
+	css, err := a.fs.Read("/public/static/style.css")
+	if err != nil {
+		return cardExportTpl{}, fmt.Errorf("error reading public styles: %w", err)
+	}
+
+	if len(a.cfg.Appearance.PublicCSS) > 0 {
+		css = append(css, '\n')
+		css = append(css, a.cfg.Appearance.PublicCSS...)
+	}
+
+	out := cardExportTpl{
+		cardTpl: cardTpl{
+			publicTpl: publicTpl{Title: card.Name, Description: card.Description},
+			Card:      card,
+			Captcha:   a.captchaTplData(),
+			Action:    cardExportAction(a.cardRootURL(c), card),
+			Labels:    card.ParsedLists(),
+		},
+		Styles: template.CSS(css),
+	}
+
+	if out.Captcha.Provider == captcha.ProviderAltcha {
+		if js, err := a.fs.Read("/public/static/altcha.umd.js"); err == nil {
+			out.AltchaJS = template.JS(js)
+		}
+	}
+
+	return out, nil
+}
+
+// ExportCard downloads a card as one self-contained HTML file. The styles are
+// inlined and the form posts back to this install with its labels baked in.
+func (a *App) ExportCard(c *echo.Context) error {
+	card, err := a.core.GetCard(getID(c), "", "")
+	if err != nil {
+		return err
+	}
+
+	return a.writeCardExport(c, card)
+}
+
+// CardExportPage downloads a card as a self-contained HTML file by slug.
+func (a *App) CardExportPage(c *echo.Context) error {
+	card, err := a.core.GetCard(0, "", c.Param("slug"))
+	if err != nil {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("globals.messages.notFound", "name", "card")))
+	}
+
+	return a.writeCardExport(c, card)
+}
+
+// writeCardExport renders a card as a downloadable HTML file.
+func (a *App) writeCardExport(c *echo.Context, card models.Card) error {
+	if !a.cfg.EnablePublicSubPage {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.invalidFeature")))
+	}
+
+	if len(cardListUUIDs(card)) == 0 {
+		return c.Render(http.StatusInternalServerError, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsAvailable")))
+	}
+
+	out, err := a.makeCardExport(c, card)
+	if err != nil {
+		return err
+	}
+
+	hdr := c.Response().Header()
+	hdr.Set(echo.HeaderContentType, "text/html; charset=utf-8")
+	hdr.Set(echo.HeaderContentDisposition, mime.FormatMediaType("attachment", map[string]string{
+		"filename": cardExportFilename(card),
+	}))
+
+	return c.Render(http.StatusOK, "card-export", out)
 }
 
 // CardSubscription handles submissions from a standalone card page. The
