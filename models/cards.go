@@ -74,6 +74,17 @@ func (c Card) ParsedLists() []CardList {
 	return out
 }
 
+// ParsedListIDs returns the IDs of the lists pinned to the card.
+func (c Card) ParsedListIDs() []int {
+	lists := c.ParsedLists()
+	ids := make([]int, 0, len(lists))
+	for _, l := range lists {
+		ids = append(ids, l.ID)
+	}
+
+	return ids
+}
+
 // GetIDs returns the list of card IDs.
 func (c Cards) GetIDs() []int {
 	ids := make([]int, len(c))

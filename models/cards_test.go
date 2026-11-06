@@ -52,3 +52,34 @@ func TestCardParsedListsEmpty(t *testing.T) {
 		t.Errorf("ParsedLists() = %v, want nil", lists)
 	}
 }
+
+func TestCardParsedListIDs(t *testing.T) {
+	c := Card{Lists: types.JSONText(`[
+		{"id": 3, "name": "One"},
+		{"id": 1, "name": "Two"},
+		{"id": 2, "name": "Three"},
+		{"id": 4, "name": "Four"}
+	]`)}
+
+	got := c.ParsedListIDs()
+	want := []int{3, 1, 2, 4}
+	if len(got) != len(want) {
+		t.Fatalf("ParsedListIDs() = %v, want %v", got, want)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ParsedListIDs()[%d] = %d, want %d", i, got[i], want[i])
+		}
+	}
+}
+
+func TestCardParsedListIDsEmpty(t *testing.T) {
+	got := (Card{}).ParsedListIDs()
+	if got == nil {
+		t.Fatal("ParsedListIDs() = nil, want empty slice")
+	}
+	if len(got) != 0 {
+		t.Errorf("ParsedListIDs() = %v, want empty slice", got)
+	}
+}

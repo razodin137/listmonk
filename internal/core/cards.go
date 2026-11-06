@@ -85,7 +85,7 @@ func (c *Core) CreateCard(card models.Card, listIDs []int) (models.Card, error) 
 	}
 
 	var newID int
-	if err := c.q.CreateCard.Get(&newID, uu.String(), name, slug, card.Description, pq.Array(listIDs)); err != nil {
+	if err := c.q.CreateCard.Get(&newID, uu.String(), name, slug, card.Description, pq.Array(normalizeCardListIDs(listIDs))); err != nil {
 		c.log.Printf("error creating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorCreating", "name", "card", "error", pqErrMsg(err)))
@@ -122,12 +122,10 @@ func (c *Core) UpdateCard(id int, card models.Card, listIDs []int) (models.Card,
 	}
 
 	if listIDs == nil {
-		for _, l := range cur.ParsedLists() {
-			listIDs = append(listIDs, l.ID)
-		}
+		listIDs = cur.ParsedListIDs()
 	}
 
-	if _, err := c.q.UpdateCard.Exec(id, name, slug, card.Description, pq.Array(listIDs)); err != nil {
+	if _, err := c.q.UpdateCard.Exec(id, name, slug, card.Description, pq.Array(normalizeCardListIDs(listIDs))); err != nil {
 		c.log.Printf("error updating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "card", "error", pqErrMsg(err)))
@@ -144,10 +142,7 @@ func (c *Core) DuplicateCard(id int) (models.Card, error) {
 		return models.Card{}, err
 	}
 
-	listIDs := make([]int, 0, len(cur.ParsedLists()))
-	for _, l := range cur.ParsedLists() {
-		listIDs = append(listIDs, l.ID)
-	}
+	listIDs := cur.ParsedListIDs()
 
 	name := fmt.Sprintf("%s (copy)", cur.Name)
 	return c.CreateCard(models.Card{
@@ -166,6 +161,31 @@ func (c *Core) DeleteCard(id int) error {
 	}
 
 	return nil
+}
+
+// normalizeCardListIDs returns a de-duplicated copy of ids with invalid
+// entries dropped. A nil slice is returned as nil so callers can distinguish
+// an omitted list from an explicit empty one.
+func normalizeCardListIDs(ids []int) []int {
+	if ids == nil {
+		return nil
+	}
+
+	seen := make(map[int]struct{}, len(ids))
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id < 1 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+
+	return out
 }
 
 // uniqueCardSlug returns slug if no other card uses it, otherwise it appends
