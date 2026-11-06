@@ -1,12 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	iofs "io/fs"
-	"os"
 	"path/filepath"
 	"sync"
 
@@ -247,17 +243,5 @@ func archivePostFile(entry campArchiveEntry) (string, error) {
 
 // writeArchiveFile writes data only when the destination differs from it.
 func writeArchiveFile(path string, data []byte) (bool, error) {
-	old, err := os.ReadFile(path)
-	if err == nil && bytes.Equal(old, data) {
-		return false, nil
-	}
-	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		return false, fmt.Errorf("reading %s: %w", path, err)
-	}
-
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return false, fmt.Errorf("writing %s: %w", path, err)
-	}
-
-	return true, nil
+	return archive.WriteFileIfChanged(path, data)
 }
