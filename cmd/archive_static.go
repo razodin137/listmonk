@@ -32,7 +32,7 @@ type archiveStaticPage struct {
 func archiveStaticFiles(entries []campArchiveEntry) []archiveExportFile {
 	pages := archiveStaticPages(entries)
 
-	out := make([]archiveExportFile, 0, len(pages)+2)
+	out := make([]archiveExportFile, 0, len(pages)+3)
 	out = append(out, archiveExportFile{
 		Name: archiveIndexFile,
 		Body: archiveStaticIndex(pages),
@@ -44,6 +44,11 @@ func archiveStaticFiles(entries []campArchiveEntry) []archiveExportFile {
 			Body: archiveStaticPageHTML(page),
 		})
 	}
+
+	out = append(out, archiveExportFile{
+		Name: archiveFeedFile,
+		Body: archiveStaticFeed(entries, pages),
+	})
 
 	out = append(out, archiveExportFile{
 		Name: archiveStylesheetFile,
@@ -98,6 +103,7 @@ func archiveStaticIndex(pages []archiveStaticPage) string {
 		Lang:       archiveLang,
 		Title:      archiveSiteTitle,
 		Stylesheet: archiveStylesheetFile,
+		FeedURL:    archiveFeedFile,
 		Entries:    entries,
 		Empty:      archiveEmptyText,
 	}); err != nil {
@@ -105,6 +111,22 @@ func archiveStaticIndex(pages []archiveStaticPage) string {
 	}
 
 	return buf.String()
+}
+
+// archiveStaticFeed renders the dataset entries as an RSS feed whose links
+// point at the HTML pages beside it.
+func archiveStaticFeed(entries []campArchiveEntry, pages []archiveStaticPage) string {
+	feed := archiveFeed(entries, archiveSiteTitle, archiveIndexFile, archiveSiteTitle, true,
+		func(i int, _ campArchiveEntry) string {
+			return pages[i].Name
+		})
+
+	out, err := writeArchiveFeed(feed)
+	if err != nil {
+		return ""
+	}
+
+	return out
 }
 
 // archiveStaticPageHTML renders one campaign as a standalone reading page.

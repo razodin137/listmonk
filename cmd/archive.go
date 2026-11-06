@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gorilla/feeds"
 	"github.com/knadh/listmonk/internal/archive"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
@@ -323,43 +322,25 @@ func (a *App) compileArchiveContent(camp models.Campaign) (manager.CampaignMessa
 	return msg, nil
 }
 
-// GetCampaignArchivesFeed renders the public campaign archives RSS feed.
+// GetCampaignArchivesFeed renders the public campaign archives RSS feed from
+// the same entries as the dataset and the static export.
 func (a *App) GetCampaignArchivesFeed(c *echo.Context) error {
-	var (
-		pg              = a.pg.NewFromURL(c.Request().URL.Query())
-		showFullContent = a.cfg.EnablePublicArchiveRSSContent
-	)
-
-	// Get archives from the DB.
-	camps, _, err := a.getCampaignArchives(pg.Offset, pg.Limit, showFullContent)
+	camps, _, err := a.core.GetArchivedCampaigns(0, 0)
 	if err != nil {
 		return err
 	}
 
-	// Format output for the feed.
-	out := make([]*feeds.Item, 0, len(camps))
-	for _, c := range camps {
-		pubDate := c.CreatedAt.Time
+	entries, err := a.buildCampaignArchiveEntries(camps)
+	if err != nil {
+		a.log.Printf("error compiling archive feed entry: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorFetchingCampaign"))
+	}
 
-		if c.SendAt.Valid {
-			pubDate = c.SendAt.Time
-		}
-
-		out = append(out, &feeds.Item{
-			Title:   c.Subject,
-			Link:    &feeds.Link{Href: c.URL},
-			Content: c.Content,
-			Created: pubDate,
+	feed := archiveFeed(entries, a.cfg.SiteName, a.urlCfg.RootURL, a.i18n.T("public.archiveTitle"),
+		a.cfg.EnablePublicArchiveRSSContent, func(_ int, entry campArchiveEntry) string {
+			href, _ := url.JoinPath(a.urlCfg.ArchiveURL, entry.Slug)
+			return href
 		})
-	}
-
-	// Generate the feed.
-	feed := &feeds.Feed{
-		Title:       a.cfg.SiteName,
-		Link:        &feeds.Link{Href: a.urlCfg.RootURL},
-		Description: a.i18n.T("public.archiveTitle"),
-		Items:       out,
-	}
 
 	if err := feed.WriteRss(c.Response()); err != nil {
 		a.log.Printf("error generating archive RSS feed: %v", err)
