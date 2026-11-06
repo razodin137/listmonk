@@ -414,6 +414,11 @@ func (a *App) PreviewCampaignArchive(c *echo.Context) error {
 
 	camp.ArchiveMeta = json.RawMessage([]byte(c.FormValue("archive_meta")))
 
+	// The template selected in the form overrides the campaign's saved archive template.
+	if tplID > 0 {
+		camp.ArchiveTemplateBody = camp.TemplateBody
+	}
+
 	// "Compile" the campaign template with appropriate data.
 	res, err := a.compileArchiveCampaigns([]models.Campaign{camp}, models.CampPreview)
 	if err != nil {

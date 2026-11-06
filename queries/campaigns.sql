@@ -85,12 +85,14 @@ ORDER BY %order% OFFSET $8 LIMIT (CASE WHEN $9 < 1 THEN NULL ELSE $9 END);
 
 -- name: get-campaign
 SELECT campaigns.*,
-    COALESCE(templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS template_body
+    COALESCE(templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS template_body,
+    COALESCE(archive_templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS archive_template_body
     FROM campaigns
     LEFT JOIN templates ON (
         CASE WHEN $4 = 'default' THEN templates.id = campaigns.template_id
         ELSE templates.id = campaigns.archive_template_id END
     )
+    LEFT JOIN templates archive_templates ON (archive_templates.id = campaigns.archive_template_id)
     WHERE CASE
             WHEN $1 > 0 THEN campaigns.id = $1
             WHEN $3 != '' THEN campaigns.archive_slug = $3
@@ -99,12 +101,14 @@ SELECT campaigns.*,
 
 -- name: get-archived-campaigns
 SELECT COUNT(*) OVER () AS total, campaigns.*,
-    COALESCE(templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS template_body
+    COALESCE(templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS template_body,
+    COALESCE(archive_templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS archive_template_body
     FROM campaigns
     LEFT JOIN templates ON (
         CASE WHEN $3 = 'default' THEN templates.id = campaigns.template_id
         ELSE templates.id = campaigns.archive_template_id END
     )
+    LEFT JOIN templates archive_templates ON (archive_templates.id = campaigns.archive_template_id)
     WHERE campaigns.archive=true AND campaigns.type='regular' AND campaigns.status=ANY('{running, paused, finished}')
     ORDER by campaigns.started_at DESC NULLS LAST, campaigns.id DESC OFFSET $1 LIMIT $2;
 
@@ -152,6 +156,7 @@ ORDER BY ARRAY_POSITION($1, id);
 
 -- name: get-campaign-for-preview
 SELECT campaigns.*, COALESCE(templates.body, '') AS template_body,
+    COALESCE(archive_templates.body, (SELECT body FROM templates WHERE is_default = true LIMIT 1), '') AS archive_template_body,
 (
 	SELECT COALESCE(ARRAY_TO_JSON(ARRAY_AGG(l)), '[]') FROM (
 		SELECT COALESCE(campaign_lists.list_id, 0) AS id,
@@ -161,6 +166,7 @@ SELECT campaigns.*, COALESCE(templates.body, '') AS template_body,
 ) AS lists
 FROM campaigns
 LEFT JOIN templates ON (templates.id = (CASE WHEN $2=0 THEN campaigns.template_id ELSE $2 END))
+LEFT JOIN templates archive_templates ON (archive_templates.id = campaigns.archive_template_id)
 WHERE campaigns.id = $1;
 
 -- name: get-campaign-status

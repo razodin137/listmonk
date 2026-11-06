@@ -1,0 +1,89 @@
+package models
+
+import (
+	"bytes"
+	"html/template"
+	"strings"
+	"testing"
+)
+
+const testMarkdownBody = `# First
+
+Intro paragraph.
+
+- one
+- two
+
+## Second
+
+Closing paragraph.
+`
+
+func TestMarkdownRendersInEmailAndArchive(t *testing.T) {
+	c := Campaign{
+		ContentType:         CampaignContentTypeMarkdown,
+		Body:                testMarkdownBody,
+		TemplateBody:        `EMAIL<html><body>{{ template "content" . }}</body></html>`,
+		ArchiveTemplateBody: `ARCHIVE<html><body>{{ template "content" . }}</body></html>`,
+	}
+
+	email := renderTestCampaign(t, &c, c.CompileTemplate)
+	archive := renderTestCampaign(t, &c, c.CompileArchiveTemplate)
+
+	if !strings.Contains(email, "EMAIL") {
+		t.Fatalf("email output did not use the campaign template: %q", email)
+	}
+	if !strings.Contains(archive, "ARCHIVE") {
+		t.Fatalf("archive output did not use the archive template: %q", archive)
+	}
+
+	emailContent := testBodyOf(t, email)
+	archiveContent := testBodyOf(t, archive)
+	if emailContent != archiveContent {
+		t.Fatalf("email content = %q, archive content = %q", emailContent, archiveContent)
+	}
+
+	if !strings.Contains(emailContent, "<h1") || !strings.Contains(emailContent, "<li>one</li>") {
+		t.Fatalf("markdown was not rendered: %q", emailContent)
+	}
+}
+
+func TestArchiveTemplateFallsBackToCampaignTemplate(t *testing.T) {
+	c := Campaign{
+		ContentType:  CampaignContentTypeMarkdown,
+		Body:         testMarkdownBody,
+		TemplateBody: `CAMPAIGN<html><body>{{ template "content" . }}</body></html>`,
+	}
+
+	archive := renderTestCampaign(t, &c, c.CompileArchiveTemplate)
+	if !strings.Contains(archive, "CAMPAIGN") {
+		t.Fatalf("archive output did not fall back to the campaign template: %q", archive)
+	}
+}
+
+func renderTestCampaign(t *testing.T, c *Campaign, compile func(template.FuncMap) error) string {
+	t.Helper()
+
+	if err := compile(template.FuncMap{}); err != nil {
+		t.Fatalf("error compiling template: %v", err)
+	}
+
+	var out bytes.Buffer
+	if err := c.Tpl.ExecuteTemplate(&out, BaseTpl, nil); err != nil {
+		t.Fatalf("error rendering template: %v", err)
+	}
+
+	return out.String()
+}
+
+func testBodyOf(t *testing.T, html string) string {
+	t.Helper()
+
+	start := strings.Index(html, "<body>")
+	end := strings.LastIndex(html, "</body>")
+	if start < 0 || end < start {
+		t.Fatalf("output has no body: %q", html)
+	}
+
+	return html[start+len("<body>") : end]
+}

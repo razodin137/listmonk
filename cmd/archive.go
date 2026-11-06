@@ -250,7 +250,7 @@ func (a *App) compileArchiveCampaigns(camps []models.Campaign, opts ...models.Ca
 		// Resolve data-embed images to media URLs as cid: cannot resolve on a web page.
 		a.manager.ApplyArchiveImages(&camp)
 
-		if err := camp.CompileTemplate(a.manager.TemplateFuncs(&camp, opts...)); err != nil {
+		if err := camp.CompileArchiveTemplate(a.manager.TemplateFuncs(&camp, opts...)); err != nil {
 			a.log.Printf("error compiling template: %v", err)
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, a.i18n.T("public.errorFetchingCampaign"))
 		}

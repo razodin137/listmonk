@@ -802,6 +802,7 @@ func (m *Manager) ApplyArchiveImages(c *models.Campaign) {
 	cache := make(map[string]string)
 	c.Body = m.applyArchiveImages(c.Body, cache)
 	c.TemplateBody = m.applyArchiveImages(c.TemplateBody, cache)
+	c.ArchiveTemplateBody = m.applyArchiveImages(c.ArchiveTemplateBody, cache)
 }
 
 func (m *Manager) applyArchiveImages(body string, cache map[string]string) string {

@@ -192,9 +192,27 @@ func (camps Campaigns) LoadStats(stmt *sqlx.Stmt) error {
 	return nil
 }
 
-// CompileTemplate compiles a campaign body template into its base
+// CompileTemplate compiles a campaign body against the campaign's e-mail
 // template and sets the resultant template to Campaign.Tpl.
 func (c *Campaign) CompileTemplate(f template.FuncMap) error {
+	return c.compileTemplate(c.TemplateBody, f)
+}
+
+// CompileArchiveTemplate compiles the same campaign body against the archive
+// template and sets the resultant template to Campaign.Tpl. It falls back to
+// the campaign template when the campaign has no archive template.
+func (c *Campaign) CompileArchiveTemplate(f template.FuncMap) error {
+	body := c.ArchiveTemplateBody
+	if body == "" {
+		body = c.TemplateBody
+	}
+
+	return c.compileTemplate(body, f)
+}
+
+// compileTemplate compiles a campaign body into the given base template,
+// rendering Markdown first so every target gets the same HTML.
+func (c *Campaign) compileTemplate(tplBody string, f template.FuncMap) error {
 	var err error
 	c.SubjectTpl, err = compileTxtTpl("subject", c.Subject, f)
 	if err != nil {
@@ -207,7 +225,7 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 	}
 
 	// Compile the base template.
-	body := c.TemplateBody
+	body := tplBody
 
 	if body == "" || c.ContentType == CampaignContentTypeVisual {
 		body = `{{ template "content" . }}`
@@ -222,15 +240,9 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 		return fmt.Errorf("error compiling base template: %v", err)
 	}
 
-	// If the format is markdown, convert Markdown to HTML.
-	if c.ContentType == CampaignContentTypeMarkdown {
-		var b bytes.Buffer
-		if err := markdown.Convert([]byte(c.Body), &b); err != nil {
-			return err
-		}
-		body = b.String()
-	} else {
-		body = c.Body
+	body, err = c.renderBody()
+	if err != nil {
+		return err
 	}
 
 	// Compile the campaign message.
@@ -284,6 +296,21 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 	}
 
 	return nil
+}
+
+// renderBody returns the campaign body as HTML. Markdown is converted once
+// here so the e-mail and archive templates render identical content.
+func (c *Campaign) renderBody() (string, error) {
+	if c.ContentType != CampaignContentTypeMarkdown {
+		return c.Body, nil
+	}
+
+	var b bytes.Buffer
+	if err := markdown.Convert([]byte(c.Body), &b); err != nil {
+		return "", fmt.Errorf("error rendering markdown: %w", err)
+	}
+
+	return b.String(), nil
 }
 
 func compileTxtTpl(label, val string, f template.FuncMap) (*tplRenderer, error) {
