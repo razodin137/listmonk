@@ -193,6 +193,7 @@ func initFlags(ko *koanf.Koanf) {
 	f.Bool("passive", false, "run in passive mode where campaigns are not processed")
 	f.String("archive-export", "", "write the public archive dataset and one file per campaign to a directory")
 	f.String("archive-backfill", "", "publish every finished campaign to the public archive and write it to a directory")
+	f.Int("archive-years", 0, "with --archive-export or --archive-backfill, only write campaigns from the last N years (0 writes all)")
 	if err := f.Parse(os.Args[1:]); err != nil {
 		lo.Fatalf("error loading flags: %v", err)
 	}

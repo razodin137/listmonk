@@ -310,7 +310,7 @@ func main() {
 
 	// Publish every finished campaign to the archive, export it and exit.
 	if dir := ko.String("archive-backfill"); dir != "" {
-		if err := app.BackfillArchive(dir); err != nil {
+		if err := app.BackfillArchiveYears(dir, ko.Int("archive-years")); err != nil {
 			lo.Fatalf("error backfilling archive: %v", err)
 		}
 		return
@@ -318,7 +318,7 @@ func main() {
 
 	// Publish finished campaigns and export the public archive, then exit.
 	if dir := ko.String("archive-export"); dir != "" {
-		if err := app.BackfillArchive(dir); err != nil {
+		if err := app.BackfillArchiveYears(dir, ko.Int("archive-years")); err != nil {
 			lo.Fatalf("error exporting archive: %v", err)
 		}
 		return

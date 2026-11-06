@@ -49,33 +49,87 @@ func (a *App) archiveFinishedCampaign(c *models.Campaign) error {
 // archive and then writes the dataset and files, leaving up-to-date files
 // untouched.
 func (a *App) BackfillArchive(dir string) error {
+	return a.BackfillArchiveYears(dir, 0)
+}
+
+// BackfillArchiveYears publishes finished campaigns from the last years and
+// then writes them, newest first. A year count of zero or less means every
+// campaign. Each campaign left out is logged with the reason it was skipped.
+func (a *App) BackfillArchiveYears(dir string, years int) error {
 	camps, _, err := a.core.QueryCampaigns("", []string{models.CampaignStatusFinished}, nil, "",
 		models.FieldCreatedAt, models.OrderAsc, true, nil, 0, 0)
 	if err != nil {
 		return fmt.Errorf("fetching finished campaigns: %w", err)
 	}
 
-	var published, skipped int
+	var (
+		window             = archive.Window{Years: years, Now: time.Now()}
+		published, skipped int
+	)
+
 	for i := range camps {
-		wrote, err := a.publishCampaignToArchive(&camps[i])
+		camp := &camps[i]
+		title := models.MakeArchiveTitle(camp.Subject)
+
+		if reason := archiveCampaignSkipReason(*camp, window); reason != "" {
+			skipped++
+			a.log.Printf("archive: skipped campaign %d %q: %s", camp.ID, title, reason)
+			continue
+		}
+
+		wrote, err := a.publishCampaignToArchive(camp)
 		if err != nil {
-			return fmt.Errorf("archiving campaign %s: %w", camps[i].UUID, err)
+			return fmt.Errorf("archiving campaign %s: %w", camp.UUID, err)
 		}
 
 		if wrote {
 			published++
 		} else {
 			skipped++
+			a.log.Printf("archive: skipped campaign %d %q: already archived", camp.ID, title)
 		}
 	}
 
-	a.log.Printf("archive: backfilled %d campaigns, %d already archived", published, skipped)
+	a.log.Printf("archive: backfilled %d campaigns, skipped %d", published, skipped)
 
-	if err := a.ExportArchive(dir); err != nil {
+	if err := a.ExportArchiveYears(dir, years); err != nil {
 		return fmt.Errorf("exporting archive: %w", err)
 	}
 
 	return nil
+}
+
+// archiveCampaignSkipReason explains why a campaign is outside the window, or
+// returns an empty string when it belongs in the export.
+func archiveCampaignSkipReason(c models.Campaign, window archive.Window) string {
+	if c.Type != models.CampaignTypeRegular && c.Type != models.CampaignTypePost {
+		return fmt.Sprintf("type %q is not part of the public archive", c.Type)
+	}
+
+	date := campaignArchiveDate(c)
+
+	return window.SkipReason(date.Time, date.Valid)
+}
+
+// archiveEntriesWithin keeps the entries inside the window, preserving their
+// newest-first order. It reports how many entries were left out.
+func archiveEntriesWithin(entries []campArchiveEntry, window archive.Window) ([]campArchiveEntry, int) {
+	if window.Years <= 0 {
+		return entries, 0
+	}
+
+	out := entries[:0]
+	skipped := 0
+	for _, entry := range entries {
+		if window.SkipReason(entry.Date.Time, entry.Date.Valid) != "" {
+			skipped++
+			continue
+		}
+
+		out = append(out, entry)
+	}
+
+	return out, skipped
 }
 
 // publishCampaignToArchive marks a campaign as archived using its stored
@@ -146,6 +200,13 @@ func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 // whose contents have not changed are left untouched, and hand-edited files
 // are kept with the new export written to a numeric variant beside them.
 func (a *App) ExportArchive(dir string) error {
+	return a.ExportArchiveYears(dir, 0)
+}
+
+// ExportArchiveYears writes the same files as ExportArchive, limited to
+// campaigns from the last years. A year count of zero or less exports every
+// campaign. Entries are written newest first.
+func (a *App) ExportArchiveYears(dir string, years int) error {
 	if dir == "" {
 		dir = archive.DefaultExportDir
 	}
@@ -163,6 +224,9 @@ func (a *App) ExportArchive(dir string) error {
 	if err != nil {
 		return fmt.Errorf("building archive entries: %w", err)
 	}
+
+	window := archive.Window{Years: years, Now: time.Now()}
+	entries, filtered := archiveEntriesWithin(entries, window)
 
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
@@ -229,6 +293,9 @@ func (a *App) ExportArchive(dir string) error {
 	}
 
 	a.log.Printf("archive: exported %d campaigns to %s", len(entries), dir)
+	if filtered > 0 {
+		a.log.Printf("archive: skipped %d posts outside the %d-year window", filtered, years)
+	}
 	a.log.Printf("archive: wrote %d files, left %d unchanged, kept %d hand-edited", written, unchanged, kept)
 
 	return nil

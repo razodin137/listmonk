@@ -50,3 +50,17 @@ not exist.
 archive_export_dir = "content/posts"
 ```
 
+## Exporting campaigns already sent
+
+`--archive-export` writes the dataset and one Markdown file per campaign to the
+given directory. Add `--archive-years` to limit the export to the last few
+years; files are written newest first, and every campaign left out is logged
+with the reason it was skipped.
+
+```sh
+./listmonk --archive-export content/posts --archive-years 3
+```
+
+`--archive-backfill` does the same while also publishing every finished
+campaign that is not in the archive yet.
+
