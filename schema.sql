@@ -87,6 +87,7 @@ CREATE TABLE cards (
     description     TEXT NOT NULL DEFAULT '',
     success_message TEXT NOT NULL DEFAULT '',
     redirect_url    TEXT NOT NULL DEFAULT '',
+    captcha         TEXT NOT NULL DEFAULT 'inherit',
 
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()

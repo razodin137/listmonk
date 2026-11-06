@@ -33,6 +33,16 @@
 				<small data-hint>{{ $root.L.T "cards.redirectURLHelp" }}</small>
 			</label>
 
+			<label data-field>
+				{{ $root.L.T "cards.captcha" }}
+				<select name="captcha" x-model="form.captcha">
+					<option value="inherit">{{ $root.L.T "cards.captchaInherit" }}</option>
+					<option value="on">{{ $root.L.T "cards.captchaOn" }}</option>
+					<option value="off">{{ $root.L.T "cards.captchaOff" }}</option>
+				</select>
+				<small data-hint>{{ $root.L.T "cards.captchaHelp" }}</small>
+			</label>
+
 			{{ template "list-selector" dict "Root" $root "Model" "form.lists" "ListID" "card-lists" "Label" "cards.labels" "Placeholder" "cards.labelsPlaceholder" "Hint" "cards.labelsHelp" }}
 		</section>
 		<footer class="hstack justify-end mt-6">

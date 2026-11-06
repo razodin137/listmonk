@@ -53,6 +53,32 @@ func TestCardParsedListsEmpty(t *testing.T) {
 	}
 }
 
+func TestCardCaptchaEnabled(t *testing.T) {
+	cases := []struct {
+		name   string
+		mode   string
+		global bool
+		want   bool
+	}{
+		{"empty inherits enabled", "", true, true},
+		{"empty inherits disabled", "", false, false},
+		{"inherit enabled", CardCaptchaInherit, true, true},
+		{"inherit disabled", CardCaptchaInherit, false, false},
+		{"on with provider", CardCaptchaOn, true, true},
+		{"on without provider", CardCaptchaOn, false, false},
+		{"off with provider", CardCaptchaOff, true, false},
+		{"off without provider", CardCaptchaOff, false, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (Card{Captcha: tc.mode}).CaptchaEnabled(tc.global); got != tc.want {
+				t.Errorf("CaptchaEnabled(%v) = %v, want %v", tc.global, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCardHasPrivateList(t *testing.T) {
 	cases := []struct {
 		name  string

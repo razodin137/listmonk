@@ -39,6 +39,7 @@ function cardForm({ isNew = true } = {}) {
     description: "",
     success_message: "",
     redirect_url: "",
+    captcha: "inherit",
     lists: []
   })
 
@@ -73,6 +74,7 @@ function cardForm({ isNew = true } = {}) {
         description: this.form.description || "",
         success_message: this.form.success_message || "",
         redirect_url: this.form.redirect_url || "",
+        captcha: this.form.captcha || "inherit",
         list_ids: this.form.lists.map((l) => l.id)
       }
     }

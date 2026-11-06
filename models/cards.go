@@ -10,6 +10,12 @@ import (
 
 var reCardSlug = regexp.MustCompile(`[^\p{L}\p{M}\p{N}]+`)
 
+const (
+	CardCaptchaInherit = "inherit"
+	CardCaptchaOn      = "on"
+	CardCaptchaOff     = "off"
+)
+
 // MakeSlug normalizes a string into a URL-safe slug, keeping Unicode
 // letters and numbers and collapsing everything else into dashes.
 func MakeSlug(s string) string {
@@ -33,6 +39,7 @@ type Card struct {
 	Description    string         `db:"description" json:"description"`
 	SuccessMessage string         `db:"success_message" json:"success_message"`
 	RedirectURL    string         `db:"redirect_url" json:"redirect_url"`
+	Captcha        string         `db:"captcha" json:"captcha"`
 	Lists          types.JSONText `db:"lists" json:"lists"`
 
 	// Joins is the number of signups that came through the card, with the
@@ -74,6 +81,17 @@ func (c Card) ParsedLists() []CardList {
 	}
 
 	return out
+}
+
+// CaptchaEnabled reports whether the card's signup form should require a
+// captcha, given whether a global provider is configured. A card can inherit
+// the global setting, always require a captcha, or opt out.
+func (c Card) CaptchaEnabled(global bool) bool {
+	if c.Captcha == CardCaptchaOff {
+		return false
+	}
+
+	return global
 }
 
 // HasPrivateList reports whether any list pinned to the card has become

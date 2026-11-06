@@ -170,7 +170,7 @@ func (a *App) ViewCard(c *echo.Context) error {
 		adminView: newAdminView(c, fmt.Sprintf("%s / %s", card.Name, a.i18n.T("globals.terms.cards")), "", "lists.cards"),
 		Card:      card,
 		Tab:       tab,
-		Embed:     a.makeCardEmbed(card, a.captcha != nil && a.captcha.IsEnabled()),
+		Embed:     a.makeCardEmbed(card, a.cardCaptchaEnabled(card)),
 	}
 
 	if tab == "edit" {
@@ -270,6 +270,35 @@ func (a *App) DuplicateCard(c *echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{out})
 }
 
+// cardCaptchaEnabled reports whether a card should show a captcha using the
+// globally configured provider.
+func (a *App) cardCaptchaEnabled(card models.Card) bool {
+	if a.captcha == nil {
+		return false
+	}
+
+	return card.CaptchaEnabled(a.captcha.IsEnabled())
+}
+
+// cardCaptchaTpl returns the captcha widget settings for a card.
+func (a *App) cardCaptchaTpl(card models.Card) captchaTpl {
+	if !a.cardCaptchaEnabled(card) {
+		return captchaTpl{}
+	}
+
+	return a.captchaTplData()
+}
+
+// verifyCardCaptcha verifies a card submission's captcha when the card's
+// setting requires one.
+func (a *App) verifyCardCaptcha(c *echo.Context, card models.Card) error {
+	if !a.cardCaptchaEnabled(card) {
+		return nil
+	}
+
+	return a.verifyCaptcha(c)
+}
+
 // cardTpl is the public view of a single signup card.
 type cardTpl struct {
 	publicTpl
@@ -307,7 +336,7 @@ func (a *App) CardPage(c *echo.Context) error {
 	out := cardTpl{
 		publicTpl: publicTpl{Title: card.Name, Description: card.Description},
 		Card:      card,
-		Captcha:   a.captchaTplData(),
+		Captcha:   a.cardCaptchaTpl(card),
 	}
 
 	return c.Render(http.StatusOK, "card", out)
@@ -335,7 +364,7 @@ func (a *App) CardEmbedPage(c *echo.Context) error {
 	out := cardTpl{
 		publicTpl: publicTpl{Title: card.Name, Description: card.Description},
 		Card:      card,
-		Captcha:   a.captchaTplData(),
+		Captcha:   a.cardCaptchaTpl(card),
 	}
 
 	return c.Render(http.StatusOK, "card-embed", out)
@@ -384,7 +413,7 @@ func (a *App) makeCardExport(c *echo.Context, card models.Card) (cardExportTpl, 
 		cardTpl: cardTpl{
 			publicTpl: publicTpl{Title: card.Name, Description: card.Description},
 			Card:      card,
-			Captcha:   a.captchaTplData(),
+			Captcha:   a.cardCaptchaTpl(card),
 			Action:    cardExportAction(a.cardRootURL(c), card),
 			Labels:    card.ParsedLists(),
 		},
@@ -471,7 +500,7 @@ func (a *App) CardSubscription(c *echo.Context) error {
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsSelected")))
 	}
 
-	if err := a.verifyCaptcha(c); err != nil {
+	if err := a.verifyCardCaptcha(c, card); err != nil {
 		e, ok := err.(*echo.HTTPError)
 		if !ok {
 			return err

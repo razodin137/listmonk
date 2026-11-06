@@ -89,10 +89,16 @@ func (c *Core) CreateCard(card models.Card, listIDs []int) (models.Card, error) 
 		return models.Card{}, err
 	}
 
+	captcha, ok := normalizeCardCaptcha(card.Captcha)
+	if !ok {
+		return models.Card{}, echo.NewHTTPError(http.StatusBadRequest,
+			c.i18n.Ts("globals.messages.invalidFields", "name", "captcha"))
+	}
+
 	var newID int
 	if err := c.q.CreateCard.Get(&newID, uu.String(), name, slug, card.Description,
 		normalizeCardSuccessMessage(card.SuccessMessage), normalizeCardRedirectURL(card.RedirectURL),
-		pq.Array(listIDs)); err != nil {
+		captcha, pq.Array(listIDs)); err != nil {
 		c.log.Printf("error creating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorCreating", "name", "card", "error", pqErrMsg(err)))
@@ -137,9 +143,19 @@ func (c *Core) UpdateCard(id int, card models.Card, listIDs []int) (models.Card,
 		}
 	}
 
+	captcha := cur.Captcha
+	if strings.TrimSpace(card.Captcha) != "" {
+		var ok bool
+		captcha, ok = normalizeCardCaptcha(card.Captcha)
+		if !ok {
+			return models.Card{}, echo.NewHTTPError(http.StatusBadRequest,
+				c.i18n.Ts("globals.messages.invalidFields", "name", "captcha"))
+		}
+	}
+
 	if _, err := c.q.UpdateCard.Exec(id, name, slug, card.Description,
 		normalizeCardSuccessMessage(card.SuccessMessage), normalizeCardRedirectURL(card.RedirectURL),
-		pq.Array(listIDs)); err != nil {
+		captcha, pq.Array(listIDs)); err != nil {
 		c.log.Printf("error updating card: %v", err)
 		return models.Card{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "card", "error", pqErrMsg(err)))
@@ -170,6 +186,7 @@ func (c *Core) DuplicateCard(id int) (models.Card, error) {
 		Description:    cur.Description,
 		SuccessMessage: cur.SuccessMessage,
 		RedirectURL:    cur.RedirectURL,
+		Captcha:        cur.Captcha,
 	}, listIDs)
 }
 
@@ -246,6 +263,21 @@ func normalizeCardListIDs(ids []int) []int {
 	}
 
 	return out
+}
+
+// normalizeCardCaptcha returns a valid per-card captcha mode. An empty value
+// falls back to inheriting the global setting.
+func normalizeCardCaptcha(mode string) (string, bool) {
+	switch strings.TrimSpace(mode) {
+	case "", models.CardCaptchaInherit:
+		return models.CardCaptchaInherit, true
+	case models.CardCaptchaOn:
+		return models.CardCaptchaOn, true
+	case models.CardCaptchaOff:
+		return models.CardCaptchaOff, true
+	default:
+		return "", false
+	}
 }
 
 // normalizeCardSuccessMessage trims the card's success message.
