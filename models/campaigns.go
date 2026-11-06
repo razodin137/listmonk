@@ -199,6 +199,10 @@ func (camps Campaigns) LoadStats(stmt *sqlx.Stmt) error {
 // CompileTemplate compiles a campaign body against the campaign's e-mail
 // template and sets the resultant template to Campaign.Tpl.
 func (c *Campaign) CompileTemplate(f template.FuncMap) error {
+	if err := c.GenerateAltBody(); err != nil {
+		return err
+	}
+
 	return c.compileTemplate(c.TemplateBody, f)
 }
 
@@ -206,6 +210,10 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 // template and sets the resultant template to Campaign.Tpl. It falls back to
 // the campaign template when the campaign has no archive template.
 func (c *Campaign) CompileArchiveTemplate(f template.FuncMap) error {
+	if err := c.GenerateAltBody(); err != nil {
+		return err
+	}
+
 	body := c.ArchiveTemplateBody
 	if body == "" {
 		body = c.TemplateBody
@@ -265,6 +273,7 @@ func (c *Campaign) compileTemplate(tplBody string, f template.FuncMap) error {
 	}
 	c.Tpl = &tplRenderer{out}
 
+	c.AltBodyTpl = nil
 	if HasTplExpr(c.AltBody.String) {
 		b := c.AltBody.String
 		for _, r := range regTplFuncs {
@@ -318,6 +327,31 @@ func (c *Campaign) renderBody() (string, error) {
 	return out, nil
 }
 
+// GenerateAltBody generates a plain-text alternative from the Markdown body
+// when the campaign does not already have one.
+func (c *Campaign) GenerateAltBody() error {
+	if c.ContentType != CampaignContentTypeMarkdown || strings.TrimSpace(c.AltBody.String) != "" {
+		return nil
+	}
+
+	body := bodyWithoutFrontMatter(c.Body)
+	if strings.TrimSpace(body) == "" {
+		return nil
+	}
+
+	text, err := renderMarkdownText([]byte(body))
+	if err != nil {
+		return err
+	}
+	if text == "" {
+		return nil
+	}
+
+	c.AltBody = null.NewString(text, true)
+
+	return nil
+}
+
 func (c *Campaign) mediaResolver() func(string) (string, error) {
 	if c.MediaURLResolver != nil {
 		return c.MediaURLResolver
@@ -344,7 +378,7 @@ func compileTxtTpl(label, val string, f template.FuncMap) (*tplRenderer, error) 
 }
 
 // ConvertContent converts a campaign's body from one format to another,
-// for example, Markdown to HTML.
+// for example, Markdown to HTML or plain text.
 func (c *Campaign) ConvertContent(from, to string) (string, error) {
 	body := c.Body
 	for _, r := range regTplFuncs {
@@ -353,15 +387,22 @@ func (c *Campaign) ConvertContent(from, to string) (string, error) {
 
 	// If the format is markdown, convert Markdown to HTML.
 	var out string
-	if from == CampaignContentTypeMarkdown &&
-		(to == CampaignContentTypeHTML || to == CampaignContentTypeRichtext) {
+	switch {
+	case from == CampaignContentTypeMarkdown &&
+		(to == CampaignContentTypeHTML || to == CampaignContentTypeRichtext):
 		html, warnings, err := renderMarkdown([]byte(bodyWithoutFrontMatter(c.Body)), c.mediaResolver())
 		if err != nil {
 			return out, err
 		}
 		c.MediaWarnings = warnings
 		out = html
-	} else {
+	case from == CampaignContentTypeMarkdown && to == CampaignContentTypePlain:
+		plain, err := renderMarkdownText([]byte(bodyWithoutFrontMatter(c.Body)))
+		if err != nil {
+			return out, err
+		}
+		out = plain
+	default:
 		return out, errors.New("unknown formats to convert")
 	}
 

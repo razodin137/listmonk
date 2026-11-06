@@ -882,6 +882,9 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 		if _, err := c.ApplyFrontMatter(); err != nil {
 			return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidBody", "error", err.Error()))
 		}
+		if err := c.GenerateAltBody(); err != nil {
+			return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidBody", "error", err.Error()))
+		}
 	}
 
 	// If there's a "send_at" date, it should be in the future.
