@@ -23,8 +23,9 @@ type archiveExportFile struct {
 	Body string
 }
 
-// ExportArchive writes the public archive dataset and one file per campaign to
-// dir. Files whose contents have not changed are left untouched.
+// ExportArchive writes the public archive dataset, one Markdown file per
+// campaign, and a static HTML site to dir. Files whose contents have not
+// changed are left untouched.
 func (a *App) ExportArchive(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating archive directory: %w", err)
@@ -47,7 +48,7 @@ func (a *App) ExportArchive(dir string) error {
 	data = append(data, '\n')
 
 	var (
-		files              = archiveExportFiles(entries)
+		files              = append(archiveExportFiles(entries), archiveStaticFiles(entries)...)
 		written, unchanged int
 	)
 
