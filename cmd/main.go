@@ -266,10 +266,6 @@ func main() {
 	// Start cronjobs.
 	initCron(core, db)
 
-	// Start the campaign manager workers. The campaign batches (fetch from DB, push out
-	// messages) get processed at the specified interval.
-	go mgr.Run()
-
 	// =========================================================================
 	// Initialize the App{} with all the global shared components, controllers and fields.
 	app := &App{
@@ -319,6 +315,14 @@ func main() {
 		}
 		return
 	}
+
+	// Publish each campaign and refresh the exported files as soon as it
+	// finishes sending.
+	mgr.SetCampaignFinishedHook(app.archiveFinishedCampaign)
+
+	// Start the campaign manager workers. The campaign batches (fetch from DB, push out
+	// messages) get processed at the specified interval.
+	go mgr.Run()
 
 	// Star the update checker.
 	if ko.Bool("app.check_updates") {

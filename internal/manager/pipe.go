@@ -291,6 +291,12 @@ func (p *pipe) cleanup() {
 			p.m.log.Printf("error finishing campaign (%s): %v", p.camp.Name, err)
 		} else {
 			p.m.log.Printf("campaign (%s) finished", p.camp.Name)
+
+			if p.m.fnFinished != nil {
+				if err := p.m.fnFinished(c); err != nil {
+					p.m.log.Printf("error archiving campaign (%s): %v", p.camp.Name, err)
+				}
+			}
 		}
 	} else {
 		p.m.log.Printf("finish processing campaign (%s)", p.camp.Name)

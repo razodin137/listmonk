@@ -9,18 +9,55 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unicode"
+
+	"github.com/knadh/listmonk/models"
 )
 
 const (
-	archiveDatasetFile = "archive.json"
-	archivePostExt     = ".md"
+	archiveDatasetFile      = "archive.json"
+	archivePostExt          = ".md"
+	defaultArchiveExportDir = "content/posts"
 )
 
 // archiveExportFile is one campaign body destined for the export directory.
 type archiveExportFile struct {
 	Name string
 	Body string
+}
+
+// archiveFinishedMut serialises the publish-and-export step so a later
+// finishing campaign never overwrites the export with an older snapshot.
+var archiveFinishedMut sync.Mutex
+
+// archiveFinishedCampaign publishes a finished campaign to the public archive
+// and refreshes the exported files in the same step.
+func (a *App) archiveFinishedCampaign(c *models.Campaign) error {
+	archiveFinishedMut.Lock()
+	defer archiveFinishedMut.Unlock()
+
+	if !c.Archive {
+		meta := models.JSON{}
+		if len(c.ArchiveMeta) > 0 {
+			if err := json.Unmarshal(c.ArchiveMeta, &meta); err != nil {
+				return fmt.Errorf("decoding campaign archive meta: %w", err)
+			}
+			if meta == nil {
+				meta = models.JSON{}
+			}
+		}
+
+		if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, c.ArchiveSlug.String); err != nil {
+			return fmt.Errorf("publishing campaign to archive: %w", err)
+		}
+	}
+
+	if err := a.ExportArchive(defaultArchiveExportDir); err != nil {
+		return fmt.Errorf("exporting archive: %w", err)
+	}
+
+	return nil
 }
 
 // ExportArchive writes the public archive dataset, one Markdown file per

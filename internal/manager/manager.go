@@ -85,6 +85,7 @@ type Manager struct {
 	i18n       *i18n.I18n
 	messengers map[string]Messenger
 	fnNotify   func(subject string, data any) error
+	fnFinished func(*models.Campaign) error
 	log        *log.Logger
 
 	// Campaigns that are currently running.
@@ -252,6 +253,12 @@ func (m *Manager) PushCampaignMessage(msg CampaignMessage) error {
 	}
 
 	return nil
+}
+
+// SetCampaignFinishedHook sets a callback that runs once after a campaign is
+// marked finished. It is called from the pipe's cleanup goroutine.
+func (m *Manager) SetCampaignFinishedHook(fn func(*models.Campaign) error) {
+	m.fnFinished = fn
 }
 
 // HasMessenger checks if a given messenger is registered.
