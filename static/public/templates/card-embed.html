@@ -1,0 +1,17 @@
+{{ define "card-embed" }}<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="robots" content="noindex" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .Data.Card.Name }}</title>
+    <link href="{{ URI "/public/static/style.css" }}?v={{ .AssetVersion }}" rel="stylesheet" type="text/css" />
+    <link href="{{ URI "/public/static/card-embed.css" }}?v={{ .AssetVersion }}" rel="stylesheet" type="text/css" />
+</head>
+<body class="card-embed">
+    <main class="card-embed-body">
+        {{ template "card-signup" . }}
+    </main>
+</body>
+</html>
+{{ end }}

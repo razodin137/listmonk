@@ -2,12 +2,33 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v5"
+)
+
+const (
+	// cardEmbedBaseHeight is the iframe height that fits a card with no
+	// description or captcha. Extra content grows the frame from there.
+	cardEmbedBaseHeight = 400
+
+	// cardEmbedDescriptionHeight is the space taken by a one-line description.
+	cardEmbedDescriptionHeight = 38
+
+	// cardEmbedLineHeight is the extra height per additional description line.
+	cardEmbedLineHeight = 26
+
+	// cardEmbedCaptchaHeight is the space taken by a captcha widget.
+	cardEmbedCaptchaHeight = 110
+
+	// cardEmbedDescLineLen is the approximate number of characters that fit
+	// on one line of a card description.
+	cardEmbedDescLineLen = 55
 )
 
 // cardsView is the admin page view for the signup cards list.
@@ -26,6 +47,47 @@ type cardView struct {
 	AllLists []models.List
 	IsNew    bool
 	Tab      string
+	Embed    cardEmbed
+}
+
+// cardEmbed is the iframe snippet shown on a card's overview page.
+type cardEmbed struct {
+	URL    string
+	Height int
+	Code   string
+}
+
+// makeCardEmbed builds the iframe snippet for a card.
+func (a *App) makeCardEmbed(card models.Card, captcha bool) cardEmbed {
+	path := fmt.Sprintf("%s/signup/%s/embed", strings.TrimSuffix(a.urlCfg.RootURL, "/"), url.PathEscape(card.Slug))
+	height := cardEmbedHeight(card, captcha)
+
+	return cardEmbed{
+		URL:    path,
+		Height: height,
+		Code: fmt.Sprintf(
+			`<iframe src="%s" title="%s" width="100%%" height="%d" style="border:0;max-width:100%%;" loading="lazy"></iframe>`,
+			html.EscapeString(path), html.EscapeString(card.Name), height),
+	}
+}
+
+// cardEmbedHeight returns a fixed iframe height that fits the card content.
+func cardEmbedHeight(card models.Card, captcha bool) int {
+	height := cardEmbedBaseHeight
+
+	if card.Description != "" {
+		lines := (len([]rune(card.Description)) + cardEmbedDescLineLen - 1) / cardEmbedDescLineLen
+		if lines < 1 {
+			lines = 1
+		}
+		height += cardEmbedDescriptionHeight + (lines-1)*cardEmbedLineHeight
+	}
+
+	if captcha {
+		height += cardEmbedCaptchaHeight
+	}
+
+	return height
 }
 
 // cardReq wraps a card with the list IDs (labels) sent by the client.
@@ -105,6 +167,7 @@ func (a *App) ViewCard(c *echo.Context) error {
 		adminView: newAdminView(c, fmt.Sprintf("%s / %s", card.Name, a.i18n.T("globals.terms.cards")), "", "lists.cards"),
 		Card:      card,
 		Tab:       tab,
+		Embed:     a.makeCardEmbed(card, a.captcha != nil && a.captcha.IsEnabled()),
 	}
 
 	if tab == "edit" {
@@ -236,6 +299,34 @@ func (a *App) CardPage(c *echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "card", out)
+}
+
+// CardEmbedPage renders a card as an embeddable signup form with no page
+// chrome around it. The iframe boundary keeps the host page's styles out.
+func (a *App) CardEmbedPage(c *echo.Context) error {
+	if !a.cfg.EnablePublicSubPage {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.invalidFeature")))
+	}
+
+	card, err := a.core.GetCard(0, "", c.Param("slug"))
+	if err != nil {
+		return c.Render(http.StatusNotFound, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("globals.messages.notFound", "name", "card")))
+	}
+
+	if len(cardListUUIDs(card)) == 0 {
+		return c.Render(http.StatusInternalServerError, tplMessage,
+			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.T("public.noListsAvailable")))
+	}
+
+	out := cardTpl{
+		publicTpl: publicTpl{Title: card.Name, Description: card.Description},
+		Card:      card,
+		Captcha:   a.captchaTplData(),
+	}
+
+	return c.Render(http.StatusOK, "card-embed", out)
 }
 
 // CardSubscription handles submissions from a standalone card page. The

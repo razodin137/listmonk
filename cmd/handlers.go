@@ -325,6 +325,8 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		// Public subscriber facing views.
 		g.GET("/signup/:slug", a.CardPage)
 		g.POST("/signup/:slug", a.CardSubscription)
+		g.GET("/signup/:slug/embed", a.CardEmbedPage)
+		g.POST("/signup/:slug/embed", a.CardSubscription)
 		g.GET("/subscription/form", a.SubscriptionFormPage)
 		g.POST("/subscription/form", a.SubscriptionForm)
 		g.GET("/subscription/:campUUID/:subUUID", noIndex(a.hasUUID(a.hasSub(a.SubscriptionPage), "campUUID", "subUUID")))

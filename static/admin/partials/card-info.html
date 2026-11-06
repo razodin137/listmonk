@@ -33,6 +33,21 @@
 		</div>
 	</div>
 
+	<div class="card">
+		<div class="vstack gap-2">
+			<div class="hstack justify-between gap-2">
+				<div>
+					<h4 class="title">{{ Icon "code" }} {{ .L.T "cards.embed" }}</h4>
+					<p class="text-small text-light">{{ .L.T "cards.embedHelp" }}</p>
+				</div>
+				<button type="button" class="small" data-variant="secondary" data-testid="btn-copy-embed" title="{{ .L.T "globals.messages.clickToCopy" }}" aria-label="{{ .L.T "cards.embed" }}" @click="copyToClipboard($refs.embed.value)">
+					{{ Icon "copy" }} {{ .L.T "globals.buttons.copy" }}
+				</button>
+			</div>
+			<textarea id="card-embed-code" class="monospace" data-testid="card-embed-code" x-ref="embed" rows="3" readonly @focus="$el.select()">{{ $d.Embed.Code }}</textarea>
+		</div>
+	</div>
+
 	<section class="row">
 		<div class="col-3">
 			<article class="card float stat-card">
