@@ -70,6 +70,36 @@ func TestMakeArchiveSlug(t *testing.T) {
 	}
 }
 
+func TestMakeArchiveTitle(t *testing.T) {
+	cases := map[string]struct {
+		subject string
+		want    string
+	}{
+		"surrounding spaces":     {subject: "  Hello, World!  ", want: "Hello, World!"},
+		"decoded entities":       {subject: "Fish &amp; Chips", want: "Fish & Chips"},
+		"decoded leading prefix": {subject: "&#82;e: Hello", want: "Hello"},
+		"doubled spaces":         {subject: "Hello  World", want: "Hello World"},
+		"mixed whitespace":       {subject: "Hello\n\tWorld", want: "Hello World"},
+		"reply prefix":           {subject: "Re: Hello", want: "Hello"},
+		"reply prefix no space":  {subject: "Re:Hello", want: "Hello"},
+		"repeated prefixes":      {subject: "Re: Re: Hello", want: "Hello"},
+		"other case prefix":      {subject: "RE: Hello", want: "Hello"},
+		"prefix after entity":    {subject: "&nbsp;Re: Hello", want: "Hello"},
+		"similar word":           {subject: "Reminder: Hello", want: "Reminder: Hello"},
+		"only prefix":            {subject: "Re:   ", want: ""},
+		"keeps case and words":   {subject: "mixed CASE stays", want: "mixed CASE stays"},
+		"empty":                  {subject: "", want: ""},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := MakeArchiveTitle(tc.subject); got != tc.want {
+				t.Errorf("MakeArchiveTitle(%q) = %q, want %q", tc.subject, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCompileContentTemplateOmitsWrapper(t *testing.T) {
 	c := Campaign{
 		ContentType:         CampaignContentTypeMarkdown,

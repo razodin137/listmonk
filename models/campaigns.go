@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"strings"
 	txttpl "text/template"
@@ -30,6 +31,22 @@ const (
 	CampaignContentTypePlain    = "plain"
 	CampaignContentTypeVisual   = "visual"
 )
+
+const archiveReplyPrefix = "Re:"
+
+// MakeArchiveTitle turns an email subject into an archive title. HTML
+// entities are decoded, surrounding space is trimmed, leading "Re:" prefixes
+// are dropped, and runs of whitespace become single spaces. The remaining
+// words and their case are left alone.
+func MakeArchiveTitle(subject string) string {
+	title := strings.TrimSpace(html.UnescapeString(subject))
+	for len(title) >= len(archiveReplyPrefix) &&
+		strings.EqualFold(title[:len(archiveReplyPrefix)], archiveReplyPrefix) {
+		title = strings.TrimSpace(title[len(archiveReplyPrefix):])
+	}
+
+	return strings.Join(strings.Fields(title), " ")
+}
 
 // MakeArchiveSlug derives a URL-safe archive slug from a subject. Empty
 // subjects become "untitled", and slugs already present in used get a

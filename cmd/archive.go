@@ -67,14 +67,14 @@ func archiveDateFrom(startedAt, sendAt, createdAt null.Time) null.Time {
 }
 
 // campaignArchiveSlug returns a campaign's stable archive slug. A slug that
-// has already been written wins; otherwise it is derived from the subject.
-func campaignArchiveSlug(c models.Campaign, subject string, used map[string]struct{}) string {
+// has already been written wins; otherwise it is derived from the title.
+func campaignArchiveSlug(c models.Campaign, title string, used map[string]struct{}) string {
 	if c.ArchiveSlug.Valid && c.ArchiveSlug.String != "" {
 		used[c.ArchiveSlug.String] = struct{}{}
 		return c.ArchiveSlug.String
 	}
 
-	return models.MakeArchiveSlug(subject, used)
+	return models.MakeArchiveSlug(title, used)
 }
 
 // campaignArchiveTags returns the campaign tags as a non-nil slice so the
@@ -90,7 +90,7 @@ func (a *App) archiveListData(camps []campArchive) archive.ListData {
 		date := archiveDateFrom(camp.StartedAt, camp.SendAt, camp.CreatedAt)
 
 		entries = append(entries, archive.Entry{
-			Title:    camp.Subject,
+			Title:    models.MakeArchiveTitle(camp.Subject),
 			Href:     camp.URL,
 			Date:     a.archiveDate(date),
 			DateTime: archiveDateTime(date),
@@ -261,7 +261,7 @@ func (a *App) buildCampaignArchiveEntries(camps models.Campaigns) ([]campArchive
 
 		out = append(out, campArchiveEntry{
 			UUID:  camp.UUID,
-			Title: msg.Subject(),
+			Title: models.MakeArchiveTitle(msg.Subject()),
 			Date:  campaignArchiveDate(camp),
 			Tags:  campaignArchiveTags(camp),
 			Body:  string(msg.Body()),
@@ -276,10 +276,10 @@ func (a *App) buildCampaignArchiveEntries(camps models.Campaigns) ([]campArchive
 // archiveSlugs returns the stable archive slug for each campaign, in the
 // same order as camps. Every caller that needs a campaign's address, file
 // name, or front matter slug uses this one rule.
-func archiveSlugs(camps models.Campaigns, subjects []string) []string {
+func archiveSlugs(camps models.Campaigns, titles []string) []string {
 	entries := make([]campArchiveEntry, len(camps))
 	for i := range camps {
-		entries[i].Title = subjects[i]
+		entries[i].Title = titles[i]
 	}
 
 	assignArchiveSlugs(camps, entries)
@@ -293,7 +293,7 @@ func archiveSlugs(camps models.Campaigns, subjects []string) []string {
 }
 
 // assignArchiveSlugs fills in each entry's slug from the campaign's stored
-// slug or subject. Stored slugs are reserved first, and derived slugs are
+// slug or title. Stored slugs are reserved first, and derived slugs are
 // assigned oldest first so a new campaign never renames an older one.
 func assignArchiveSlugs(camps models.Campaigns, entries []campArchiveEntry) {
 	// index.html is the archive's list page, so no post may take that slug.
@@ -453,7 +453,8 @@ func (a *App) CampaignArchivePage(c *echo.Context) error {
 			makeMsgTpl(a.i18n.T("globals.terms.error"), "", a.i18n.Ts("public.errorFetchingCampaign")))
 	}
 
-	return a.renderArchivePage(c, a.archivePageData(msg.Subject(), campaignArchiveDate(pubCamp), template.HTML(msg.Body())))
+	return a.renderArchivePage(c, a.archivePageData(models.MakeArchiveTitle(msg.Subject()),
+		campaignArchiveDate(pubCamp), template.HTML(msg.Body())))
 }
 
 // CampaignArchivePageLatest renders the latest public campaign.
@@ -486,13 +487,13 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 	}
 
 	camps := make(models.Campaigns, len(msgs))
-	subjects := make([]string, len(msgs))
+	titles := make([]string, len(msgs))
 	for i, m := range msgs {
 		camps[i] = *m.Campaign
-		subjects[i] = m.Campaign.Subject
+		titles[i] = models.MakeArchiveTitle(m.Campaign.Subject)
 	}
 
-	slugs := archiveSlugs(camps, subjects)
+	slugs := archiveSlugs(camps, titles)
 
 	out := make([]campArchive, 0, len(msgs))
 	for i, m := range msgs {

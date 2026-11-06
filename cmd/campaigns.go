@@ -251,7 +251,7 @@ func (a *App) ViewCampaign(c *echo.Context) error {
 
 	// Public archive URL uses the same stored or derived slug as the export.
 	archiveURL, _ := url.JoinPath(a.urlCfg.ArchiveURL,
-		campaignArchiveSlug(camp, camp.Subject, map[string]struct{}{}))
+		campaignArchiveSlug(camp, models.MakeArchiveTitle(camp.Subject), map[string]struct{}{}))
 
 	data := campaignView{
 		adminView:  newAdminView(c, camp.Name+" / "+a.i18n.T("globals.terms.campaigns"), "", "campaigns.all"),

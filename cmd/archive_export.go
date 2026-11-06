@@ -135,12 +135,12 @@ func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 		camps[idx] = *c
 	}
 
-	subjects := make([]string, len(camps))
+	titles := make([]string, len(camps))
 	for i := range camps {
-		subjects[i] = camps[i].Subject
+		titles[i] = models.MakeArchiveTitle(camps[i].Subject)
 	}
 
-	return archiveSlugs(camps, subjects)[idx], nil
+	return archiveSlugs(camps, titles)[idx], nil
 }
 
 // ExportArchive writes the public archive dataset, one Markdown file per
