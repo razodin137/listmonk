@@ -97,13 +97,9 @@ func (a *App) publishCampaignToArchive(c *models.Campaign) (bool, error) {
 		}
 	}
 
-	slug := c.ArchiveSlug.String
-	if slug == "" {
-		used, err := a.archivedSlugs()
-		if err != nil {
-			return false, err
-		}
-		slug = models.MakeArchiveSlug(c.Subject, used)
+	slug, err := a.archiveSlugFor(c)
+	if err != nil {
+		return false, err
 	}
 
 	if err := a.core.UpdateCampaignArchive(c.ID, true, 0, meta, slug); err != nil {
@@ -117,22 +113,34 @@ func (a *App) publishCampaignToArchive(c *models.Campaign) (bool, error) {
 	return published, nil
 }
 
-// archivedSlugs returns the slugs already taken by public archive entries so
-// a new post never renames an older one.
-func (a *App) archivedSlugs() (map[string]struct{}, error) {
+// archiveSlugFor returns c's slug using the same assignment as the dataset,
+// export, and live archive, so publishing never picks a different suffix.
+func (a *App) archiveSlugFor(c *models.Campaign) (string, error) {
 	camps, _, err := a.core.GetArchivedCampaigns(0, 0)
 	if err != nil {
-		return nil, fmt.Errorf("fetching archived campaigns: %w", err)
+		return "", fmt.Errorf("fetching archived campaigns: %w", err)
 	}
 
-	used := make(map[string]struct{}, len(camps))
-	for _, camp := range camps {
-		if camp.ArchiveSlug.Valid && camp.ArchiveSlug.String != "" {
-			used[camp.ArchiveSlug.String] = struct{}{}
+	idx := -1
+	for i := range camps {
+		if camps[i].ID == c.ID {
+			idx = i
+			break
 		}
 	}
+	if idx == -1 {
+		camps = append(camps, *c)
+		idx = len(camps) - 1
+	} else {
+		camps[idx] = *c
+	}
 
-	return used, nil
+	subjects := make([]string, len(camps))
+	for i := range camps {
+		subjects[i] = camps[i].Subject
+	}
+
+	return archiveSlugs(camps, subjects)[idx], nil
 }
 
 // ExportArchive writes the public archive dataset, one Markdown file per
@@ -197,13 +205,10 @@ func (a *App) ExportArchive(dir string) error {
 	return nil
 }
 
-// archiveExportFiles names each campaign file and appends a numeric suffix
-// when two campaigns resolve to the same name.
+// archiveExportFiles names each campaign file from the same slug that the
+// archive URL and front matter use.
 func archiveExportFiles(entries []campArchiveEntry) ([]archiveExportFile, error) {
-	var (
-		out  = make([]archiveExportFile, 0, len(entries))
-		used = make(map[string]struct{}, len(entries))
-	)
+	out := make([]archiveExportFile, 0, len(entries))
 
 	for _, entry := range entries {
 		body, err := archivePostFile(entry)
@@ -211,9 +216,8 @@ func archiveExportFiles(entries []campArchiveEntry) ([]archiveExportFile, error)
 			return nil, err
 		}
 
-		name := uniqueArchiveFileName(models.ArchiveFileName(entry.Slug), used)
 		out = append(out, archiveExportFile{
-			Name: name + archivePostExt,
+			Name: models.ArchiveFileName(entry.Slug) + archivePostExt,
 			Body: body,
 		})
 	}
@@ -235,23 +239,6 @@ func archivePostFile(entry campArchiveEntry) (string, error) {
 	}
 
 	return models.RenderArchivePost(post, entry.Body)
-}
-
-// uniqueArchiveFileName returns name, or the first free name-N when it is
-// already taken.
-func uniqueArchiveFileName(name string, used map[string]struct{}) string {
-	if _, ok := used[name]; !ok {
-		used[name] = struct{}{}
-		return name
-	}
-
-	for i := 2; ; i++ {
-		candidate := fmt.Sprintf("%s-%d", name, i)
-		if _, ok := used[candidate]; !ok {
-			used[candidate] = struct{}{}
-			return candidate
-		}
-	}
 }
 
 // writeArchiveFile writes data only when the destination differs from it.

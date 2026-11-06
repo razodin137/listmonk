@@ -273,11 +273,33 @@ func (a *App) buildCampaignArchiveEntries(camps models.Campaigns) ([]campArchive
 	return out, nil
 }
 
+// archiveSlugs returns the stable archive slug for each campaign, in the
+// same order as camps. Every caller that needs a campaign's address, file
+// name, or front matter slug uses this one rule.
+func archiveSlugs(camps models.Campaigns, subjects []string) []string {
+	entries := make([]campArchiveEntry, len(camps))
+	for i := range camps {
+		entries[i].Title = subjects[i]
+	}
+
+	assignArchiveSlugs(camps, entries)
+
+	slugs := make([]string, len(entries))
+	for i := range entries {
+		slugs[i] = entries[i].Slug
+	}
+
+	return slugs
+}
+
 // assignArchiveSlugs fills in each entry's slug from the campaign's stored
 // slug or subject. Stored slugs are reserved first, and derived slugs are
 // assigned oldest first so a new campaign never renames an older one.
 func assignArchiveSlugs(camps models.Campaigns, entries []campArchiveEntry) {
-	used := make(map[string]struct{}, len(camps))
+	// index.html is the archive's list page, so no post may take that slug.
+	used := map[string]struct{}{
+		strings.TrimSuffix(archiveIndexFile, archivePageExt): {},
+	}
 	derived := make([]int, 0, len(camps))
 
 	for i, camp := range camps {
@@ -463,8 +485,17 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 		return []campArchive{}, total, err
 	}
 
+	camps := make(models.Campaigns, len(msgs))
+	subjects := make([]string, len(msgs))
+	for i, m := range msgs {
+		camps[i] = *m.Campaign
+		subjects[i] = m.Campaign.Subject
+	}
+
+	slugs := archiveSlugs(camps, subjects)
+
 	out := make([]campArchive, 0, len(msgs))
-	for _, m := range msgs {
+	for i, m := range msgs {
 		camp := m.Campaign
 
 		archive := campArchive{
@@ -476,12 +507,7 @@ func (a *App) getCampaignArchives(offset, limit int, renderBody bool) ([]campArc
 			SendAt:    camp.SendAt,
 		}
 
-		// The campaign may have a custom slug.
-		if camp.ArchiveSlug.Valid {
-			archive.URL, _ = url.JoinPath(a.urlCfg.ArchiveURL, camp.ArchiveSlug.String)
-		} else {
-			archive.URL, _ = url.JoinPath(a.urlCfg.ArchiveURL, camp.UUID)
-		}
+		archive.URL, _ = url.JoinPath(a.urlCfg.ArchiveURL, slugs[i])
 
 		// Render the full template body if requested.
 		if renderBody {

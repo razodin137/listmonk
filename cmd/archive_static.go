@@ -59,8 +59,8 @@ func archiveStaticFiles(entries []campArchiveEntry) []archiveExportFile {
 	return out
 }
 
-// archiveStaticPages names each entry's HTML page. The index name is reserved
-// so a campaign cannot overwrite the site's list page.
+// archiveStaticPages names each entry's HTML page from the same slug that the
+// archive URL, Markdown file, and front matter use.
 func archiveStaticPages(entries []campArchiveEntry) []archiveStaticPage {
 	var (
 		out  = make([]archiveStaticPage, 0, len(entries))
@@ -70,11 +70,17 @@ func archiveStaticPages(entries []campArchiveEntry) []archiveStaticPage {
 	)
 
 	for _, entry := range entries {
-		base := uniqueArchiveFileName(models.ArchiveFileName(entry.Slug), used)
+		name := models.ArchiveFileName(entry.Slug)
+		if _, ok := used[name]; ok {
+			name = models.UniqueSlug(name, used)
+		} else {
+			used[name] = struct{}{}
+		}
+
 		date, dateTime := archiveStaticDate(entry.Date)
 
 		out = append(out, archiveStaticPage{
-			Name:     base + archivePageExt,
+			Name:     name + archivePageExt,
 			Title:    entry.Title,
 			Date:     date,
 			DateTime: dateTime,

@@ -49,7 +49,6 @@ type campContentReq struct {
 
 var (
 	reFromAddress = regexp.MustCompile(`((.+?)\s)?<(.+?)@(.+?)>`)
-	reSlug        = regexp.MustCompile(`[^\p{L}\p{M}\p{N}]`)
 
 	// campaignsQueryDefaults is the allow list of filter query params.
 	campaignsQueryDefaults = map[string]string{
@@ -250,13 +249,9 @@ func (a *App) ViewCampaign(c *echo.Context) error {
 		return err
 	}
 
-	// Public archive URL has the slug if its set or the campaign UUID otherwise.
-	archiveURL := a.urlCfg.ArchiveURL
-	if camp.ArchiveSlug.Valid {
-		archiveURL, _ = url.JoinPath(a.urlCfg.ArchiveURL, camp.ArchiveSlug.String)
-	} else {
-		archiveURL, _ = url.JoinPath(a.urlCfg.ArchiveURL, camp.UUID)
-	}
+	// Public archive URL uses the same stored or derived slug as the export.
+	archiveURL, _ := url.JoinPath(a.urlCfg.ArchiveURL,
+		campaignArchiveSlug(camp, camp.Subject, map[string]struct{}{}))
 
 	data := campaignView{
 		adminView:  newAdminView(c, camp.Name+" / "+a.i18n.T("globals.terms.campaigns"), "", "campaigns.all"),
@@ -706,11 +701,7 @@ func (a *App) UpdateCampaignArchive(c *echo.Context) error {
 	}
 
 	if req.ArchiveSlug != "" {
-		// Format the slug to be alpha-numeric-dash.
-		s := strings.ToLower(req.ArchiveSlug)
-		s = strings.TrimSpace(reSlug.ReplaceAllString(s, " "))
-		s = regexpSpaces.ReplaceAllString(s, "-")
-		req.ArchiveSlug = s
+		req.ArchiveSlug = models.MakeSlug(req.ArchiveSlug)
 	}
 
 	if err := a.core.UpdateCampaignArchive(id, req.Archive, req.TemplateID, req.Meta, req.ArchiveSlug); err != nil {
@@ -1028,12 +1019,7 @@ func (a *App) validateCampaignFields(c campReq) (campReq, error) {
 	}
 
 	if c.ArchiveSlug.String != "" {
-		// Format the slug to be alpha-numeric-dash.
-		s := strings.ToLower(c.ArchiveSlug.String)
-		s = strings.TrimSpace(reSlug.ReplaceAllString(s, " "))
-		s = regexpSpaces.ReplaceAllString(s, "-")
-
-		c.ArchiveSlug = null.NewString(s, true)
+		c.ArchiveSlug = null.NewString(models.MakeSlug(c.ArchiveSlug.String), true)
 	} else {
 		// If there's no slug set, set it to NULL in the DB.
 		c.ArchiveSlug.Valid = false
